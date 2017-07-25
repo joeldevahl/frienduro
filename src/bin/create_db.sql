@@ -1,0 +1,31 @@
+CREATE EXTENSION postgis;
+
+CREATE TABLE users (
+	id SERIAL PRIMARY KEY,
+	name VARCHAR NOT NULL,
+	email VARCHAR NOT NULL
+);
+
+CREATE TABLE segments (
+	id SERIAL PRIMARY KEY,
+	name VARCHAR NOT NULL,
+	route GEOMETRY(LINESTRING,43256) NOT NULL
+);
+
+CREATE TABLE events (
+	id SERIAL PRIMARY KEY,
+	name VARCHAR NOT NULL
+);
+
+CREATE TABLE event_segments (
+	event_id INTEGER REFERENCES events(id) PRIMARY KEY,
+	segment_id INTEGER REFERENCES segments(id)
+);
+
+CREATE TABLE participations (
+	id SERIAL PRIMARY KEY,
+	event_id INTEGER REFERENCES events(id),
+	user_id INTEGER REFERENCES users(id),
+	route GEOMETRY(LINESTRING,43256) NOT NULL,
+	total_elapsed INTERVAL DEFAULT NULL
+);
