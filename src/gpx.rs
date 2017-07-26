@@ -6,14 +6,17 @@ use std::io::prelude::*;
 
 use postgis::ewkb;
 
-pub fn parse_gpx(gpx_file: String) -> Result<ewkb::LineString, io::Error> {
-    let mut points = Vec::new();
-
-    let mut file = File::open(gpx_file)?;
+pub fn read_whole_file(filename: String) -> Result<String, io::Error> {
+    let mut file = File::open(filename)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;
+    return Ok(contents);
+}
 
-    let gpx = Element::from_reader(&mut contents.as_bytes()).unwrap();
+pub fn parse_gpx(gpx_data: String) -> Result<ewkb::LineString, io::Error> {
+    let mut points = Vec::new();
+
+    let gpx = Element::from_reader(&mut gpx_data.as_bytes()).unwrap();
     let ns = "http://www.topografix.com/GPX/1/1";
     let trk = gpx.find((ns, "trk")).unwrap();
     let trkseg = trk.find((ns, "trkseg")).unwrap();
@@ -39,5 +42,5 @@ pub fn parse_gpx(gpx_file: String) -> Result<ewkb::LineString, io::Error> {
         points.push(ewkb::Point{x, y, srid: None});
     }
 
-    return Ok(ewkb::LineString{points, srid: Some(43256)});
+    return Ok(ewkb::LineString{points, srid: Some(4326)});
 }

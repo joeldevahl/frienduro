@@ -6,10 +6,16 @@ CREATE TABLE users (
 	email VARCHAR NOT NULL
 );
 
+CREATE TABLE source_routes (
+	id SERIAL PRIMARY KEY,
+	gpx XML
+);
+
 CREATE TABLE segments (
 	id SERIAL PRIMARY KEY,
 	name VARCHAR NOT NULL,
-	route GEOMETRY(LINESTRING,43256) NOT NULL
+	route GEOMETRY(LINESTRING,4326) NOT NULL,
+	source_id INTEGER REFERENCES source_routes(id)
 );
 
 CREATE TABLE events (
@@ -26,6 +32,7 @@ CREATE TABLE participations (
 	id SERIAL PRIMARY KEY,
 	event_id INTEGER REFERENCES events(id),
 	user_id INTEGER REFERENCES users(id),
-	route GEOMETRY(LINESTRING,43256) NOT NULL,
+	route GEOMETRY(LINESTRING,4326) NOT NULL,
+	source_id INTEGER REFERENCES source_routes(id),
 	total_elapsed INTERVAL DEFAULT NULL
 );

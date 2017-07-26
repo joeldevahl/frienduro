@@ -37,9 +37,15 @@ fn main()
     }
 
     let db = establish_connection();
-    let ls = gpx::parse_gpx(file.unwrap()).unwrap();
-    let rows = db.query("INSERT INTO segments (name, route) VALUES ($1, $2) RETURNING id",
-                 &[&name.unwrap(), &ls]).unwrap();
-    let id: i32 = rows.get(0).get(0);
-    println!("Created segment with ID {}", id);
+
+    let gpx_data = gpx::read_whole_file(file.unwrap()).unwrap();
+    let source_rows = db.query("INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
+                 &[&gpx_data]).unwrap();
+    let source_id: i32 = source_rows.get(0).get(0);
+
+    let ls = gpx::parse_gpx(gpx_data).unwrap();
+    let segment_rows = db.query("INSERT INTO segments (name, route, source_id) VALUES ($1, $2, $3) RETURNING id",
+                 &[&name.unwrap(), &ls, &source_id]).unwrap();
+    let segment_id: i32 = segment_rows.get(0).get(0);
+    println!("Created segment with ID {}", segment_id);
 }
