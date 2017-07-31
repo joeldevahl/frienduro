@@ -1,8 +1,10 @@
 extern crate simplenduro;
 extern crate getopts;
+extern crate postgis;
 
 use getopts::Options;
 use std::env;
+use postgis::ewkb;
 use self::simplenduro::establish_connection;
 use self::simplenduro::gpx;
 
@@ -48,9 +50,16 @@ fn main()
                  &[&gpx_data]).unwrap();
     let source_id: i32 = source_rows.get(0).get(0);
 
-    let ls = gpx::parse_gpx(gpx_data).unwrap();
+    let points = gpx::parse_gpx(gpx_data).unwrap();
+    let ls = ewkb::LineString{points, srid: Some(4326)};
     let part_rows = db.query("INSERT INTO participations (event_id, user_id, route, source_id) VALUES ($1, $2, $3, $4) RETURNING id",
                  &[&eid, &uid, &ls, &source_id]).unwrap();
     let part_id: i32 = part_rows.get(0).get(0);
     println!("Created participation with ID {}", part_id);
+
+    let match_rows = db.query("SELECT * FROM event_segments, segments WHERE event_id = $1",
+                 &[&eid]).unwrap();
+    for m in &match_rows {
+        //println!("{:?}", m);
+    }
 }

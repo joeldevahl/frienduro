@@ -24,8 +24,9 @@ CREATE TABLE events (
 );
 
 CREATE TABLE event_segments (
-	event_id INTEGER REFERENCES events(id) PRIMARY KEY,
-	segment_id INTEGER REFERENCES segments(id)
+	event_id INTEGER REFERENCES events(id) ON UPDATE CASCADE ON DELETE CASCADE,
+	segment_id INTEGER REFERENCES segments(id) ON UPDATE CASCADE,
+	CONSTRAINT event_segments_pkey PRIMARY KEY (event_id, segment_id)
 );
 
 CREATE TABLE participations (

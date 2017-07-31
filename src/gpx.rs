@@ -13,7 +13,7 @@ pub fn read_whole_file(filename: String) -> Result<String, io::Error> {
     return Ok(contents);
 }
 
-pub fn parse_gpx(gpx_data: String) -> Result<ewkb::LineString, io::Error> {
+pub fn parse_gpx(gpx_data: String) -> Result<Vec<ewkb::Point>, io::Error> {
     let mut points = Vec::new();
 
     let gpx = Element::from_reader(&mut gpx_data.as_bytes()).unwrap();
@@ -42,5 +42,5 @@ pub fn parse_gpx(gpx_data: String) -> Result<ewkb::LineString, io::Error> {
         points.push(ewkb::Point{x, y, srid: None});
     }
 
-    return Ok(ewkb::LineString{points, srid: Some(4326)});
+    return Ok(points);
 }
