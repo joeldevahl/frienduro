@@ -51,7 +51,7 @@ fn main()
     let source_id: i32 = source_rows.get(0).get(0);
 
     let points = gpx::parse_gpx(gpx_data).unwrap();
-    let ls = ewkb::LineString{points, srid: Some(4326)};
+    let ls = ewkb::LineStringZM{points, srid: Some(4326)};
     let part_rows = db.query("INSERT INTO participations (event_id, user_id, route, source_id) VALUES ($1, $2, $3, $4) RETURNING id",
                  &[&eid, &uid, &ls, &source_id]).unwrap();
     let part_id: i32 = part_rows.get(0).get(0);

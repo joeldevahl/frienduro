@@ -69,7 +69,7 @@ fn main()
         let end = start + samples_per_split;
 
         let segment_points = points[start..end].to_vec();
-        let segment_ls = ewkb::LineString{points: segment_points, srid: Some(4326)};
+        let segment_ls = ewkb::LineStringZM{points: segment_points, srid: Some(4326)};
         let segment_name = format!("{} ({})", n, s);
         let segment_rows = db.query("INSERT INTO segments (name, route, source_id) VALUES ($1, $2, $3) RETURNING id",
                      &[&segment_name, &segment_ls, &source_id]).unwrap();

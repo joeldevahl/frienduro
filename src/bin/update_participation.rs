@@ -43,8 +43,8 @@ fn main()
     let match_rows = db.query("
 SELECT
  matched_route,
- ST_ClosestPoint(matched_route, ST_StartPoint(segment_route)) AS start_point,
- ST_ClosestPoint(matched_route, ST_EndPoint(segment_route)) AS end_point
+ ST_3DClosestPoint(participation_route, ST_StartPoint(segment_route)) AS start_point,
+ ST_3DClosestPoint(participation_route, ST_EndPoint(segment_route)) AS end_point
 FROM
 (
  SELECT
@@ -59,9 +59,9 @@ FROM
 ",
                  &[&pid]).unwrap();
     for m in &match_rows {
-        let segment: ewkb::LineString = m.get(0);
-        let start: ewkb::Point = m.get(1);
-        let end: ewkb::Point = m.get(2);
+        let segment: ewkb::LineStringZM = m.get(0);
+        let start: ewkb::Geometry = m.get(1);
+        let end: ewkb::Geometry = m.get(2);
         // TODO: some safety and checking we actually matched this segment!
         println!("{:?} -> {:?}", start, end);
     }

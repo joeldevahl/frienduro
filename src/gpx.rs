@@ -13,7 +13,7 @@ pub fn read_whole_file(filename: String) -> Result<String, io::Error> {
     return Ok(contents);
 }
 
-pub fn parse_gpx(gpx_data: String) -> Result<Vec<ewkb::Point>, io::Error> {
+pub fn parse_gpx(gpx_data: String) -> Result<Vec<ewkb::PointZM>, io::Error> {
     let mut points = Vec::new();
 
     let gpx = Element::from_reader(&mut gpx_data.as_bytes()).unwrap();
@@ -23,7 +23,9 @@ pub fn parse_gpx(gpx_data: String) -> Result<Vec<ewkb::Point>, io::Error> {
     for trkpt in trkseg.find_all((ns, "trkpt")) {
         let mut x: f64 = 0.0;
         let mut y: f64 = 0.0;
-        //let mut z: f64 = 0.0;
+        let mut z: f64 = 0.0;
+        let mut m: f64 = 0.0;
+
         match trkpt.get_attr("lat") {
             Some(val) => y = val.parse().unwrap(),
             None => (),
@@ -34,12 +36,12 @@ pub fn parse_gpx(gpx_data: String) -> Result<Vec<ewkb::Point>, io::Error> {
             None => (),
         }
 
-        //match trkpt.find((ns, "ele")) {
-        //    Some(val) => z = val.text().parse().unwrap(),
-        //    None => (),
-        //}
+        match trkpt.find((ns, "ele")) {
+            Some(val) => z = val.text().parse().unwrap(),
+            None => (),
+        }
 
-        points.push(ewkb::Point{x, y, srid: None});
+        points.push(ewkb::PointZM{x, y, z, m, srid: None});
     }
 
     return Ok(points);
