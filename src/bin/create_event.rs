@@ -6,7 +6,7 @@ use std::env;
 use self::simplenduro::establish_connection;
 
 fn print_usage(program: &str, opts: Options) {
-    let brief = format!("Usage: {} [options]", program);
+    let brief = format!("Usage: {} [options] SEGMENT_IDS...", program);
     print!("{}", opts.usage(&brief));
 }
 
