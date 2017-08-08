@@ -56,10 +56,4 @@ fn main()
                  &[&eid, &uid, &ls, &source_id]).unwrap();
     let part_id: i32 = part_rows.get(0).get(0);
     println!("Created participation with ID {}", part_id);
-
-    let match_rows = db.query("SELECT * FROM event_segments, segments WHERE event_id = $1",
-                 &[&eid]).unwrap();
-    for m in &match_rows {
-        //println!("{:?}", m);
-    }
 }
