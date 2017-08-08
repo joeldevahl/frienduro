@@ -25,12 +25,12 @@ pub fn parse_gpx(gpx_data: String) -> Result<Vec<ewkb::Point>, io::Error> {
         let mut y: f64 = 0.0;
         //let mut z: f64 = 0.0;
         match trkpt.get_attr("lat") {
-            Some(val) => x = val.parse().unwrap(),
+            Some(val) => y = val.parse().unwrap(),
             None => (),
         }
 
         match trkpt.get_attr("lon") {
-            Some(val) => y = val.parse().unwrap(),
+            Some(val) => x = val.parse().unwrap(),
             None => (),
         }
 
