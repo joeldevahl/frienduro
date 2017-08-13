@@ -10,8 +10,7 @@ fn print_usage(program: &str, opts: Options) {
     print!("{}", opts.usage(&brief));
 }
 
-fn main()
-{
+fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
 
@@ -20,8 +19,8 @@ fn main()
     opts.optopt("e", "email", "user email", "EMAIL");
     opts.optflag("h", "help", "print this help menu");
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => { panic!(f.to_string()) }
+        Ok(m) => m,
+        Err(f) => panic!(f.to_string()),
     };
     if matches.opt_present("h") {
         print_usage(&program, opts);
@@ -36,8 +35,10 @@ fn main()
     }
 
     let db = establish_connection();
-    let rows = db.query("INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
-                 &[&name, &email]).unwrap();
+    let rows = db.query(
+        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
+        &[&name, &email],
+    ).unwrap();
     let id: i32 = rows.get(0).get(0);
     println!("Created user with ID {}", id);
 }

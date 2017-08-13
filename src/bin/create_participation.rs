@@ -13,8 +13,7 @@ fn print_usage(program: &str, opts: Options) {
     print!("{}", opts.usage(&brief));
 }
 
-fn main()
-{
+fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
 
@@ -24,8 +23,8 @@ fn main()
     opts.optopt("g", "gpx", "GPX file", "FILE");
     opts.optflag("h", "help", "print this help menu");
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => { panic!(f.to_string()) }
+        Ok(m) => m,
+        Err(f) => panic!(f.to_string()),
     };
     if matches.opt_present("h") {
         print_usage(&program, opts);
@@ -46,8 +45,10 @@ fn main()
     let eid: i32 = eid_str.unwrap().parse().unwrap();
 
     let gpx_data = gpx::read_whole_file(file.unwrap()).unwrap();
-    let source_rows = db.query("INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
-                 &[&gpx_data]).unwrap();
+    let source_rows = db.query(
+        "INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
+        &[&gpx_data],
+    ).unwrap();
     let source_id: i32 = source_rows.get(0).get(0);
 
     let part_rows = db.query("INSERT INTO participations (event_id, user_id, route_id, source_id) VALUES ($1, $2, nextval('route_id_seq'), $3) RETURNING id, route_id",
@@ -57,9 +58,16 @@ fn main()
 
     let points = gpx::parse_gpx(gpx_data).unwrap();
     for point in points {
-        let p = ewkb::PointZ{x: point.lon, y: point.lat, z: point.ele, srid: Some(4326)};
-        db.execute("INSERT INTO points (point, route_id, utc) VALUES ($1, $2, $3)",
-                    &[&p, &rid, &point.utc]).unwrap();
+        let p = ewkb::PointZ {
+            x: point.lon,
+            y: point.lat,
+            z: point.ele,
+            srid: Some(4326),
+        };
+        db.execute(
+            "INSERT INTO points (point, route_id, utc) VALUES ($1, $2, $3)",
+            &[&p, &rid, &point.utc],
+        ).unwrap();
     }
 
     println!("Created participation with ID {}", part_id);

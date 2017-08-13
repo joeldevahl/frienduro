@@ -53,7 +53,7 @@ pub fn parse_gpx(gpx_data: String) -> Result<Vec<Point>, io::Error> {
             None => (),
         }
 
-        points.push(Point{lat, lon, ele, utc});
+        points.push(Point { lat, lon, ele, utc });
     }
 
     return Ok(points);

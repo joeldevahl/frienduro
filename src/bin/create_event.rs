@@ -10,8 +10,7 @@ fn print_usage(program: &str, opts: Options) {
     print!("{}", opts.usage(&brief));
 }
 
-fn main()
-{
+fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
 
@@ -19,8 +18,8 @@ fn main()
     opts.optopt("n", "name", "event name", "NAME");
     opts.optflag("h", "help", "print this help menu");
     let matches = match opts.parse(&args[1..]) {
-        Ok(m) => { m }
-        Err(f) => { panic!(f.to_string()) }
+        Ok(m) => m,
+        Err(f) => panic!(f.to_string()),
     };
     if matches.opt_present("h") {
         print_usage(&program, opts);
@@ -34,14 +33,18 @@ fn main()
     }
 
     let db = establish_connection();
-    let rows = db.query("INSERT INTO events (name) VALUES ($1) RETURNING id",
-                 &[&name.unwrap()]).unwrap();
+    let rows = db.query(
+        "INSERT INTO events (name) VALUES ($1) RETURNING id",
+        &[&name.unwrap()],
+    ).unwrap();
     let id: i32 = rows.get(0).get(0);
 
     for segment_id in matches.free {
         let sid: i32 = segment_id.parse().unwrap();
-        db.execute("INSERT INTO event_segments (event_id, segment_id) VALUES ($1, $2)",
-                 &[&id, &sid]).unwrap();
+        db.execute(
+            "INSERT INTO event_segments (event_id, segment_id) VALUES ($1, $2)",
+            &[&id, &sid],
+        ).unwrap();
     }
 
     println!("Created event with ID {}", id);
