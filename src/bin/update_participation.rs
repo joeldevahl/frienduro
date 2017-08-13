@@ -39,30 +39,24 @@ fn main()
 
     let db = establish_connection();
 
+    // TODO: to this whole thing in the DB
     let pid: i32 = pid_str.unwrap().parse().unwrap();
-    let match_rows = db.query("
-SELECT
- matched_route,
- ST_3DClosestPoint(participation_route, ST_StartPoint(segment_route)) AS start_point,
- ST_3DClosestPoint(participation_route, ST_EndPoint(segment_route)) AS end_point
-FROM
-(
- SELECT
-  participations.route AS participation_route,
-  segments.route AS segment_route,
-  ST_Intersection(ST_Buffer(segments.route, 1.0), participations.route) AS matched_route
- FROM
-  segments
- INNER JOIN participations ON participations.id = $1
- INNER JOIN event_segments ON (event_segments.event_id = participations.event_id AND segments.id = event_segments.segment_id)
-) AS matches
-",
+    let participation_rows = db.query("SELECT * FROM participations WHERE id = $1",
                  &[&pid]).unwrap();
-    for m in &match_rows {
-        let segment: ewkb::LineStringZM = m.get(0);
-        let start: ewkb::Geometry = m.get(1);
-        let end: ewkb::Geometry = m.get(2);
-        // TODO: some safety and checking we actually matched this segment!
-        println!("{:?} -> {:?}", start, end);
+
+    let rid: i32 = participation_rows.get(0).get("route_id");
+    let eid: i32 = participation_rows.get(0).get("event_id");
+
+    let segment_rows = db.query("SELECT * FROM segments WHERE event_id = $1",
+                 &[&eid]).unwrap();
+
+    for row in &segment_rows {
+       // TODO: 
+/*SELECT
+ ST_Intersection(ST_Buffer(segment.route, 1.0), participation.route)
+FROM
+ (SELECT ST_MakeLine(point) AS route FROM points WHERE route_id = 11) AS participation,
+ (SELECT ST_MakeLine(point) AS route FROM points WHERE route_id = 1) AS segment;*/
     }
+
 }

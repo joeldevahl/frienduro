@@ -2,6 +2,7 @@ extern crate dotenv;
 extern crate postgres;
 extern crate postgis;
 extern crate elementtree;
+extern crate chrono;
 
 use dotenv::dotenv;
 use std::env;

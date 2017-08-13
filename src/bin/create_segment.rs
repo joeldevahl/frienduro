@@ -68,12 +68,18 @@ fn main()
         let start = s * (samples_per_split + samples_per_pad);
         let end = start + samples_per_split;
 
-        let segment_points = points[start..end].to_vec();
-        let segment_ls = ewkb::LineStringZM{points: segment_points, srid: Some(4326)};
         let segment_name = format!("{} ({})", n, s);
-        let segment_rows = db.query("INSERT INTO segments (name, route, source_id) VALUES ($1, $2, $3) RETURNING id",
-                     &[&segment_name, &segment_ls, &source_id]).unwrap();
-        let segment_id: i32 = segment_rows.get(0).get(0);
-        println!("Created segment with name {} and ID {}", segment_name, segment_id);
+        let segment_rows = db.query("INSERT INTO segments (name, route_id, source_id) VALUES ($1, nextval('route_id_seq'), $2) RETURNING id, route_id",
+                     &[&segment_name, &source_id]).unwrap();
+        let sid: i32 = segment_rows.get(0).get(0);
+        let rid: i32 = segment_rows.get(0).get(1);
+
+        for p in start..end {
+            let point = ewkb::PointZ{x: points[p].lon, y: points[p].lat, z: points[p].ele, srid: Some(4326)};
+            db.execute("INSERT INTO points (point, route_id, utc) VALUES ($1, $2, $3)",
+                        &[&point, &rid, &points[p].utc]).unwrap();
+        }
+
+        println!("Created segment with name {} and ID {}", segment_name, sid);
     }
 }

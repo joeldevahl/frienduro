@@ -11,10 +11,18 @@ CREATE TABLE source_routes (
 	gpx XML
 );
 
+CREATE SEQUENCE route_id_seq START 1;
+
+CREATE TABLE points (
+	point GEOMETRY(POINTZ,4326) NOT NULL,
+	route_id INTEGER NOT NULL,
+	utc TIMESTAMPTZ NOT NULL
+);
+
 CREATE TABLE segments (
 	id SERIAL PRIMARY KEY,
 	name VARCHAR NOT NULL,
-	route GEOMETRY(LINESTRINGZM,4326) NOT NULL,
+	route_id INTEGER NOT NULL,
 	source_id INTEGER REFERENCES source_routes(id)
 );
 
@@ -33,7 +41,7 @@ CREATE TABLE participations (
 	id SERIAL PRIMARY KEY,
 	event_id INTEGER REFERENCES events(id),
 	user_id INTEGER REFERENCES users(id),
-	route GEOMETRY(LINESTRINGZM,4326) NOT NULL,
+	route_id INTEGER NOT NULL,
 	source_id INTEGER REFERENCES source_routes(id),
 	total_elapsed INTERVAL DEFAULT NULL
 );

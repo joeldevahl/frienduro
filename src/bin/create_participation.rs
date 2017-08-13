@@ -50,10 +50,17 @@ fn main()
                  &[&gpx_data]).unwrap();
     let source_id: i32 = source_rows.get(0).get(0);
 
-    let points = gpx::parse_gpx(gpx_data).unwrap();
-    let ls = ewkb::LineStringZM{points, srid: Some(4326)};
-    let part_rows = db.query("INSERT INTO participations (event_id, user_id, route, source_id) VALUES ($1, $2, $3, $4) RETURNING id",
-                 &[&eid, &uid, &ls, &source_id]).unwrap();
+    let part_rows = db.query("INSERT INTO participations (event_id, user_id, route_id, source_id) VALUES ($1, $2, nextval('route_id_seq'), $3) RETURNING id, route_id",
+                 &[&eid, &uid, &source_id]).unwrap();
     let part_id: i32 = part_rows.get(0).get(0);
+    let rid: i32 = part_rows.get(0).get(1);
+
+    let points = gpx::parse_gpx(gpx_data).unwrap();
+    for point in points {
+        let p = ewkb::PointZ{x: point.lon, y: point.lat, z: point.ele, srid: Some(4326)};
+        db.execute("INSERT INTO points (point, route_id, utc) VALUES ($1, $2, $3)",
+                    &[&p, &rid, &point.utc]).unwrap();
+    }
+
     println!("Created participation with ID {}", part_id);
 }
