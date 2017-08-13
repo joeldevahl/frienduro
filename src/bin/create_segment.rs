@@ -76,15 +76,14 @@ fn main() {
         let rid: i32 = segment_rows.get(0).get(1);
 
         for p in start..end {
-            let point = ewkb::PointZ {
+            let point = ewkb::Point {
                 x: points[p].lon,
                 y: points[p].lat,
-                z: points[p].ele,
                 srid: Some(4326),
             };
             db.execute(
-                "INSERT INTO points (point, route_id, utc) VALUES ($1, $2, $3)",
-                &[&point, &rid, &points[p].utc],
+                "INSERT INTO points (geom, route_id, ts, ele) VALUES ($1, $2, $3, $4)",
+                &[&point, &rid, &points[p].utc, &points[p].ele],
             ).unwrap();
         }
 

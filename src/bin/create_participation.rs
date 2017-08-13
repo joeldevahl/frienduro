@@ -58,15 +58,14 @@ fn main() {
 
     let points = gpx::parse_gpx(gpx_data).unwrap();
     for point in points {
-        let p = ewkb::PointZ {
+        let p = ewkb::Point {
             x: point.lon,
             y: point.lat,
-            z: point.ele,
             srid: Some(4326),
         };
         db.execute(
-            "INSERT INTO points (point, route_id, utc) VALUES ($1, $2, $3)",
-            &[&p, &rid, &point.utc],
+            "INSERT INTO points (geom, route_id, ts, ele) VALUES ($1, $2, $3, $4)",
+            &[&p, &rid, &point.utc, &point.ele],
         ).unwrap();
     }
 
