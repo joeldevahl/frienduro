@@ -2,10 +2,13 @@
 extern crate simplenduro;
 extern crate getopts;
 extern crate postgis;
+extern crate geo;
 
 use getopts::Options;
 use std::env;
 use postgis::ewkb;
+use geo::Point;
+use geo::algorithm::haversine_distance::HaversineDistance;
 use self::simplenduro::establish_connection;
 use self::simplenduro::gpx;
 
@@ -46,16 +49,47 @@ fn main() {
     let rid: i32 = participation_rows.get(0).get("route_id");
     let eid: i32 = participation_rows.get(0).get("event_id");
 
-    let segment_rows = db.query("SELECT * FROM segments WHERE event_id = $1", &[&eid])
+    let segment_rows = db.query("SELECT
+                                    *
+                                 FROM
+                                    segments
+                                 INNER JOIN
+                                    event_segments
+                                 ON (event_segments.event_id = $1 AND segments.id = event_segments.segment_id)",
+                                 &[&eid])
         .unwrap();
 
     for row in &segment_rows {
-        // TODO: 
-/*SELECT
- ST_Intersection(ST_Buffer(segment.route, 1.0), participation.route)
-FROM
- (SELECT ST_MakeLine(point) AS route FROM points WHERE route_id = 11) AS participation,
- (SELECT ST_MakeLine(point) AS route FROM points WHERE route_id = 1) AS segment;*/
-    }
+        let segment_rid: i32 = row.get("route_id");
 
+        let matched_rows = db.query("SELECT
+                                        ST_Intersection(ST_Buffer(segment.route, 1.0), participation.route) AS cut,
+                                        segment.route AS segment,
+                                        ST_StartPoint(segment.route) AS segment_start,
+                                        ST_EndPoint(segment.route) AS segment_end,
+                                        participation.route AS participation
+                                    FROM
+                                    (SELECT ST_MakeLine(geom) AS route FROM points WHERE route_id = $1) AS participation,
+                                    (SELECT ST_MakeLine(geom) AS route FROM points WHERE route_id = $2) AS segment",
+                             &[&rid, &segment_rid],
+        ).unwrap();
+
+        let mls: ewkb::MultiLineString = matched_rows.get(0).get("cut");
+        let segment: ewkb::LineString = matched_rows.get(0).get("segment");
+        let segment_start: ewkb::Point = matched_rows.get(0).get("segment_start");
+        let segment_end: ewkb::Point = matched_rows.get(0).get("segment_end");
+
+        for ls in mls.lines {
+            let points = ls.points;
+            let start = &points[0];
+            let end = &(points.last().unwrap());
+
+            let ds = Point::new(start.y, start.x)
+                .haversine_distance(&Point::new(segment_start.y, segment_start.x));
+            let de = Point::new(end.y, end.x)
+                .haversine_distance(&Point::new(segment_end.y, segment_end.x));
+
+            println!("Match with ds {} and de {}", ds, de);
+        }
+    }
 }
