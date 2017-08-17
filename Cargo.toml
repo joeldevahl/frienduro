@@ -5,9 +5,8 @@ version = "0.0.1"
 authors = [ "Joel de Vahl <joel@devahl.com>" ]
 
 [dependencies]
-postgres = { version = "0.14", features = ["with-chrono", "with-geo"] }
+postgres = { version = "0.14", features = ["with-chrono"] }
 postgis = "0.4"
-geo = "0.4"
 chrono = "0.3"
 elementtree = "0.4"
 dotenv = "0.10"

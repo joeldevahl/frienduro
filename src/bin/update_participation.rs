@@ -2,13 +2,11 @@
 extern crate simplenduro;
 extern crate getopts;
 extern crate postgis;
-extern crate geo;
+extern crate postgres;
 
 use getopts::Options;
 use std::env;
 use postgis::ewkb;
-use geo::Point;
-use geo::algorithm::haversine_distance::HaversineDistance;
 use self::simplenduro::establish_connection;
 use self::simplenduro::gpx;
 
@@ -60,10 +58,12 @@ fn main() {
         .unwrap();
 
     for row in &segment_rows {
+        let sid: i32 = row.get("id");
         let segment_rid: i32 = row.get("route_id");
+        println!("Segment {}", sid);
 
         let matched_rows = db.query("SELECT
-                                        ST_Intersection(ST_Buffer(segment.route, 1.0), participation.route) AS cut,
+                                        ST_Intersection(ST_Buffer(segment.route, 10, 'endcap=flat join=round'), participation.route) AS cut,
                                         segment.route AS segment,
                                         ST_StartPoint(segment.route) AS segment_start,
                                         ST_EndPoint(segment.route) AS segment_end,
@@ -74,22 +74,48 @@ fn main() {
                              &[&rid, &segment_rid],
         ).unwrap();
 
-        let mls: ewkb::MultiLineString = matched_rows.get(0).get("cut");
         let segment: ewkb::LineString = matched_rows.get(0).get("segment");
         let segment_start: ewkb::Point = matched_rows.get(0).get("segment_start");
         let segment_end: ewkb::Point = matched_rows.get(0).get("segment_end");
 
-        for ls in mls.lines {
-            let points = ls.points;
-            let start = &points[0];
-            let end = &(points.last().unwrap());
+        let is_mls: Option<postgres::Result<ewkb::MultiLineString>> = matched_rows.get(0).get_opt("cut");
+        match is_mls {
+            None => (),
+            Some(Ok(mls)) => {
+                for ls in mls.lines {
+                    let points = ls.points;
+                    let start = &points[0];
+                    let end = &(points.last().unwrap());
 
-            let ds = Point::new(start.y, start.x)
-                .haversine_distance(&Point::new(segment_start.y, segment_start.x));
-            let de = Point::new(end.y, end.x)
-                .haversine_distance(&Point::new(segment_end.y, segment_end.x));
+                    let distance_rows = db.query("SELECT
+                        ST_Distance($1::geography, $2::geography) AS dist_start,
+                        ST_Distance($3::geography, $4::geography) AS dist_end",
+                        &[&segment_start, &start, &segment_end, &end],
+                    ).unwrap();
 
-            println!("Match with ds {} and de {}", ds, de);
+                    let distance_start: f64 = distance_rows.get(0).get(0);
+                    let distance_end: f64 = distance_rows.get(0).get(1);
+                    println!("\tMatch {} -> {}", distance_start, distance_end);
+                }
+            }
+            Some(Err(err)) => 
+            {
+                let ls: ewkb::LineString = matched_rows.get(0).get("cut");
+
+                let points = ls.points;
+                let start = &points[0];
+                let end = &(points.last().unwrap());
+
+                let distance_rows = db.query("SELECT
+                    ST_Distance($1::geography, $2::geography) AS dist_start,
+                    ST_Distance($3::geography, $4::geography) AS dist_end",
+                    &[&segment_start, &start, &segment_end, &end],
+                ).unwrap();
+
+                let distance_start: f64 = distance_rows.get(0).get(0);
+                let distance_end: f64 = distance_rows.get(0).get(1);
+                println!("\tMatch {} -> {}", distance_start, distance_end);
+            }
         }
     }
 }
