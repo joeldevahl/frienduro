@@ -1,48 +1,57 @@
 CREATE EXTENSION postgis;
 
 CREATE TABLE users (
-	id SERIAL PRIMARY KEY,
+	id BIGSERIAL PRIMARY KEY,
 	name VARCHAR NOT NULL,
 	email VARCHAR NOT NULL
 );
 
 CREATE TABLE source_routes (
-	id SERIAL PRIMARY KEY,
+	id BIGSERIAL PRIMARY KEY,
 	gpx XML
 );
 
 CREATE SEQUENCE route_id_seq START 1;
 
 CREATE TABLE points (
-	geom GEOMETRY(POINT,4326) NOT NULL,
-	route_id INTEGER NOT NULL,
+	geom GEOGRAPHY(POINT,4326) NOT NULL,
+	route_id BIGINT NOT NULL,
 	ts TIMESTAMPTZ NOT NULL,
 	ele DOUBLE PRECISION NOT NULL
 );
 
 CREATE TABLE segments (
-	id SERIAL PRIMARY KEY,
+	id BIGSERIAL PRIMARY KEY,
 	name VARCHAR NOT NULL,
-	route_id INTEGER NOT NULL,
-	source_id INTEGER REFERENCES source_routes(id)
+	route_id BIGINT NOT NULL,
+	source_id BIGINT REFERENCES source_routes(id),
+	geom GEOGRAPHY(LINESTRING,4326) DEFAULT NULL,
+	geom_expanded GEOGRAPHY(LINESTRING,4326) DEFAULT NULL
 );
 
 CREATE TABLE events (
-	id SERIAL PRIMARY KEY,
+	id BIGSERIAL PRIMARY KEY,
 	name VARCHAR NOT NULL
 );
 
 CREATE TABLE event_segments (
-	event_id INTEGER REFERENCES events(id) ON UPDATE CASCADE ON DELETE CASCADE,
-	segment_id INTEGER REFERENCES segments(id) ON UPDATE CASCADE,
+	event_id BIGINT REFERENCES events(id) ON UPDATE CASCADE ON DELETE CASCADE,
+	segment_id BIGINT REFERENCES segments(id) ON UPDATE CASCADE,
 	CONSTRAINT event_segments_pkey PRIMARY KEY (event_id, segment_id)
 );
 
 CREATE TABLE participations (
-	id SERIAL PRIMARY KEY,
-	event_id INTEGER REFERENCES events(id),
-	user_id INTEGER REFERENCES users(id),
-	route_id INTEGER NOT NULL,
-	source_id INTEGER REFERENCES source_routes(id),
-	total_elapsed INTERVAL DEFAULT NULL
+	id BIGSERIAL PRIMARY KEY,
+	event_id BIGINT REFERENCES events(id),
+	user_id BIGINT REFERENCES users(id),
+	route_id BIGINT NOT NULL,
+	source_id BIGINT REFERENCES source_routes(id),
+	total_elapsed INTERVAL DEFAULT NULL,
+	geom GEOGRAPHY(LINESTRING,4326) DEFAULT NULL
+);
+
+CREATE TABLE participation_segments (
+	participation_id BIGINT REFERENCES participations(id) ON UPDATE CASCADE ON DELETE CASCADE,
+	segment_id BIGINT REFERENCES segments(id) ON UPDATE CASCADE,
+	elapsed INTERVAL DEFAULT NULL
 );

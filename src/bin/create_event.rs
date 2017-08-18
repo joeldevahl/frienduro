@@ -37,10 +37,10 @@ fn main() {
         "INSERT INTO events (name) VALUES ($1) RETURNING id",
         &[&name.unwrap()],
     ).unwrap();
-    let id: i32 = rows.get(0).get(0);
+    let id: i64 = rows.get(0).get(0);
 
     for segment_id in matches.free {
-        let sid: i32 = segment_id.parse().unwrap();
+        let sid: i64 = segment_id.parse().unwrap();
         db.execute(
             "INSERT INTO event_segments (event_id, segment_id) VALUES ($1, $2)",
             &[&id, &sid],

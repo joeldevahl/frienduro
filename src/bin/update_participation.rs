@@ -40,12 +40,12 @@ fn main() {
     let db = establish_connection();
 
     // TODO: to this whole thing in the DB
-    let pid: i32 = pid_str.unwrap().parse().unwrap();
+    let pid: i64 = pid_str.unwrap().parse().unwrap();
     let participation_rows = db.query("SELECT * FROM participations WHERE id = $1", &[&pid])
         .unwrap();
 
-    let rid: i32 = participation_rows.get(0).get("route_id");
-    let eid: i32 = participation_rows.get(0).get("event_id");
+    let rid: i64 = participation_rows.get(0).get("route_id");
+    let eid: i64 = participation_rows.get(0).get("event_id");
 
     let segment_rows = db.query("SELECT
                                     *
@@ -58,19 +58,19 @@ fn main() {
         .unwrap();
 
     for row in &segment_rows {
-        let sid: i32 = row.get("id");
-        let segment_rid: i32 = row.get("route_id");
+        let sid: i64 = row.get("id");
+        let segment_rid: i64 = row.get("route_id");
         println!("Segment {}", sid);
 
         let matched_rows = db.query("SELECT
                                         ST_Intersection(ST_Buffer(segment.route, 10, 'endcap=flat join=round'), participation.route) AS cut,
                                         segment.route AS segment,
-                                        ST_StartPoint(segment.route) AS segment_start,
-                                        ST_EndPoint(segment.route) AS segment_end,
+                                        ST_StartPoint(segment.route::geometry) AS segment_start,
+                                        ST_EndPoint(segment.route::geometry) AS segment_end,
                                         participation.route AS participation
                                     FROM
-                                    (SELECT ST_MakeLine(geom) AS route FROM points WHERE route_id = $1) AS participation,
-                                    (SELECT ST_MakeLine(geom) AS route FROM points WHERE route_id = $2) AS segment",
+                                    (SELECT ST_MakeLine(geom::geometry)::geography AS route FROM points WHERE route_id = $1) AS participation,
+                                    (SELECT ST_MakeLine(geom::geometry)::geography AS route FROM points WHERE route_id = $2) AS segment",
                              &[&rid, &segment_rid],
         ).unwrap();
 

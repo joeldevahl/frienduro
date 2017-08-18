@@ -39,6 +39,6 @@ fn main() {
         "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
         &[&name, &email],
     ).unwrap();
-    let id: i32 = rows.get(0).get(0);
+    let id: i64 = rows.get(0).get(0);
     println!("Created user with ID {}", id);
 }

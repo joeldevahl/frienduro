@@ -57,7 +57,7 @@ fn main() {
         "INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
         &[&gpx_data],
     ).unwrap();
-    let source_id: i32 = source_rows.get(0).get(0);
+    let source_id: i64 = source_rows.get(0).get(0);
 
     let points = gpx::parse_gpx(gpx_data).unwrap();
     let n = name.unwrap();
@@ -72,8 +72,8 @@ fn main() {
         let segment_name = format!("{} ({})", n, s);
         let segment_rows = db.query("INSERT INTO segments (name, route_id, source_id) VALUES ($1, nextval('route_id_seq'), $2) RETURNING id, route_id",
                      &[&segment_name, &source_id]).unwrap();
-        let sid: i32 = segment_rows.get(0).get(0);
-        let rid: i32 = segment_rows.get(0).get(1);
+        let sid: i64 = segment_rows.get(0).get(0);
+        let rid: i64 = segment_rows.get(0).get(1);
 
         for p in start..end {
             let point = ewkb::Point {

@@ -41,20 +41,20 @@ fn main() {
 
     let db = establish_connection();
 
-    let uid: i32 = uid_str.unwrap().parse().unwrap();
-    let eid: i32 = eid_str.unwrap().parse().unwrap();
+    let uid: i64 = uid_str.unwrap().parse().unwrap();
+    let eid: i64 = eid_str.unwrap().parse().unwrap();
 
     let gpx_data = gpx::read_whole_file(file.unwrap()).unwrap();
     let source_rows = db.query(
         "INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
         &[&gpx_data],
     ).unwrap();
-    let source_id: i32 = source_rows.get(0).get(0);
+    let source_id: i64 = source_rows.get(0).get(0);
 
     let part_rows = db.query("INSERT INTO participations (event_id, user_id, route_id, source_id) VALUES ($1, $2, nextval('route_id_seq'), $3) RETURNING id, route_id",
                  &[&eid, &uid, &source_id]).unwrap();
-    let part_id: i32 = part_rows.get(0).get(0);
-    let rid: i32 = part_rows.get(0).get(1);
+    let part_id: i64 = part_rows.get(0).get(0);
+    let rid: i64 = part_rows.get(0).get(1);
 
     let points = gpx::parse_gpx(gpx_data).unwrap();
     for point in points {
