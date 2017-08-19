@@ -3,31 +3,31 @@ extern crate simplenduro;
 extern crate getopts;
 extern crate postgis;
 extern crate postgres;
+extern crate chrono;
 
 use getopts::Options;
 use std::env;
 use postgis::ewkb;
+use chrono::prelude::*;
 use self::simplenduro::establish_connection;
-use self::simplenduro::gpx;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
 }
-/*
-fn interp_point() {
 
-    let start_points_rows = db.query(
-        "SELECT
-            *
-         FROM
-            points
-         WHERE
-            route_id = $1"
-        &[&segment_start, &start, &segment_end, &end],
+fn interp_point(db: &postgres::Connection, rid: i64, point: &ewkb::Point) -> DateTime<UTC> {
+    // TODO: asumes we only passes once around the segment
+    let rows = db.query(
+        "SELECT ts
+         FROM points
+         WHERE route_id = $1
+         ORDER BY ST_Distance(geom, $2) ASC
+         LIMIT 1",
+        &[&rid, &point],
     ).unwrap();
-
-}*/
+    return rows.get(0).get(0);
+}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -71,6 +71,8 @@ fn main() {
                                  &[&eid])
         .unwrap();
 
+    let mut num_matched = 0;
+    let mut total_elapsed = chrono::Duration::seconds(0);
     for row in &segment_rows {
         let sid: i64 = row.get("id");
         let segment_rid: i64 = row.get("route_id");
@@ -111,17 +113,23 @@ fn main() {
                 let distance_start: f64 = distance_rows.get(0).get(0);
                 let distance_end: f64 = distance_rows.get(0).get(1);
                 if distance_start < 2.0 && distance_end < 2.0 {
-                    println!(
-                        "\tMatch {} -> {} ({:?}, {:?})",
-                        distance_start,
-                        distance_end,
-                        start,
-                        end
-                    );
-                    break;
+                    let start_time = interp_point(&db, rid, start);
+                    let end_time = interp_point(&db, rid, end);
+                    let diff = end_time.signed_duration_since(start_time);
+                    if diff >= chrono::Duration::seconds(0) {
+                        num_matched += 1;
+                        total_elapsed = total_elapsed + diff;
+                        println!(
+                            "\tMatch {} -> {} ({:?})",
+                            distance_start,
+                            distance_end,
+                            diff
+                        );
+                        break;
+                    }
                 }
             },
-            Some(Err(err)) => {
+            Some(Err(..)) => {
                 let ls: ewkb::LineString = matched_rows.get(0).get("cut");
 
                 let points = ls.points;
@@ -138,16 +146,29 @@ fn main() {
                 let distance_start: f64 = distance_rows.get(0).get(0);
                 let distance_end: f64 = distance_rows.get(0).get(1);
                 if distance_start < 2.0 && distance_end < 2.0 {
+                    let start_time = interp_point(&db, rid, start);
+                    let end_time = interp_point(&db, rid, end);
+                    let diff = end_time.signed_duration_since(start_time);
 
-                    println!(
-                        "\tMatch {} -> {} ({:?}, {:?})",
-                        distance_start,
-                        distance_end,
-                        start,
-                        end
-                    );
+                    if diff >= chrono::Duration::seconds(0) {
+                        num_matched += 1;
+                        total_elapsed = total_elapsed + diff;
+                        println!(
+                            "\tMatch {} -> {} ({:?})",
+                            distance_start,
+                            distance_end,
+                            diff
+                        );
+                    }
                 }
             }
         }
     }
+
+    println!(
+        "Matched {} out of {} segments for a total time of {} seconds",
+        num_matched,
+        segment_rows.len(),
+        total_elapsed.num_seconds()
+    );
 }
