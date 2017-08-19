@@ -14,6 +14,20 @@ fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
 }
+/*
+fn interp_point() {
+
+    let start_points_rows = db.query(
+        "SELECT
+            *
+         FROM
+            points
+         WHERE
+            route_id = $1"
+        &[&segment_start, &start, &segment_end, &end],
+    ).unwrap();
+
+}*/
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -63,7 +77,7 @@ fn main() {
         println!("Segment {}", sid);
 
         let matched_rows = db.query("SELECT
-                                        ST_Intersection(ST_Buffer(segment.route, 10, 'endcap=flat join=round'), participation.route) AS cut,
+                                        ST_Intersection(ST_Buffer(segment.route, 2, 'endcap=flat join=round'), participation.route) AS cut,
                                         segment.route AS segment,
                                         ST_StartPoint(segment.route::geometry) AS segment_start,
                                         ST_EndPoint(segment.route::geometry) AS segment_end,
@@ -78,35 +92,44 @@ fn main() {
         let segment_start: ewkb::Point = matched_rows.get(0).get("segment_start");
         let segment_end: ewkb::Point = matched_rows.get(0).get("segment_end");
 
-        let is_mls: Option<postgres::Result<ewkb::MultiLineString>> = matched_rows.get(0).get_opt("cut");
+        let is_mls: Option<postgres::Result<ewkb::MultiLineString>> =
+            matched_rows.get(0).get_opt("cut");
         match is_mls {
             None => (),
-            Some(Ok(mls)) => {
-                for ls in mls.lines {
-                    let points = ls.points;
-                    let start = &points[0];
-                    let end = &(points.last().unwrap());
+            Some(Ok(mls)) => for ls in mls.lines {
+                let points = ls.points;
+                let start = &points[0];
+                let end = &(points.last().unwrap());
 
-                    let distance_rows = db.query("SELECT
+                let distance_rows = db.query(
+                    "SELECT
                         ST_Distance($1::geography, $2::geography) AS dist_start,
                         ST_Distance($3::geography, $4::geography) AS dist_end",
-                        &[&segment_start, &start, &segment_end, &end],
-                    ).unwrap();
+                    &[&segment_start, &start, &segment_end, &end],
+                ).unwrap();
 
-                    let distance_start: f64 = distance_rows.get(0).get(0);
-                    let distance_end: f64 = distance_rows.get(0).get(1);
-                    println!("\tMatch {} -> {}", distance_start, distance_end);
+                let distance_start: f64 = distance_rows.get(0).get(0);
+                let distance_end: f64 = distance_rows.get(0).get(1);
+                if distance_start < 2.0 && distance_end < 2.0 {
+                    println!(
+                        "\tMatch {} -> {} ({:?}, {:?})",
+                        distance_start,
+                        distance_end,
+                        start,
+                        end
+                    );
+                    break;
                 }
-            }
-            Some(Err(err)) => 
-            {
+            },
+            Some(Err(err)) => {
                 let ls: ewkb::LineString = matched_rows.get(0).get("cut");
 
                 let points = ls.points;
                 let start = &points[0];
                 let end = &(points.last().unwrap());
 
-                let distance_rows = db.query("SELECT
+                let distance_rows = db.query(
+                    "SELECT
                     ST_Distance($1::geography, $2::geography) AS dist_start,
                     ST_Distance($3::geography, $4::geography) AS dist_end",
                     &[&segment_start, &start, &segment_end, &end],
@@ -114,7 +137,16 @@ fn main() {
 
                 let distance_start: f64 = distance_rows.get(0).get(0);
                 let distance_end: f64 = distance_rows.get(0).get(1);
-                println!("\tMatch {} -> {}", distance_start, distance_end);
+                if distance_start < 2.0 && distance_end < 2.0 {
+
+                    println!(
+                        "\tMatch {} -> {} ({:?}, {:?})",
+                        distance_start,
+                        distance_end,
+                        start,
+                        end
+                    );
+                }
             }
         }
     }
