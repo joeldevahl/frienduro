@@ -53,7 +53,7 @@ fn main() {
 
     let part_rows = db.query("INSERT INTO participations (event_id, user_id, route_id, source_id) VALUES ($1, $2, nextval('route_id_seq'), $3) RETURNING id, route_id",
                  &[&eid, &uid, &source_id]).unwrap();
-    let part_id: i64 = part_rows.get(0).get(0);
+    let pid: i64 = part_rows.get(0).get(0);
     let rid: i64 = part_rows.get(0).get(1);
 
     let points = gpx::parse_gpx(gpx_data).unwrap();
@@ -69,5 +69,12 @@ fn main() {
         ).unwrap();
     }
 
-    println!("Created participation with ID {}", part_id);
+    db.execute(
+        "UPDATE participations SET geom = line.geom
+        FROM (SELECT ST_MakeLine(geom::geometry)::geography AS geom FROM points WHERE route_id = $1) AS line
+        WHERE id = $2",
+        &[&rid, &pid],
+    ).unwrap();
+
+    println!("Created participation with ID {}", pid);
 }

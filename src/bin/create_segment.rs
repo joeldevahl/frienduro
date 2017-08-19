@@ -87,6 +87,13 @@ fn main() {
             ).unwrap();
         }
 
+        db.execute(
+            "UPDATE segments SET geom = line.geom, geom_expanded = ST_Buffer(line.geom, 2, 'endcap=flat join=round')
+            FROM (SELECT ST_MakeLine(geom::geometry)::geography AS geom FROM points WHERE route_id = $1) AS line
+            WHERE id = $2",
+            &[&rid, &sid],
+        ).unwrap();
+
         println!("Created segment with name {} and ID {}", segment_name, sid);
     }
 }
