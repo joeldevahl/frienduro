@@ -61,6 +61,15 @@ fn main() {
     let rid: i64 = participation_rows.get(0).get("route_id");
     let eid: i64 = participation_rows.get(0).get("event_id");
 
+    // TODO: handle the case where the user submits many atempts on a single event
+    let count_rows = db.query("SELECT COUNT(segment_id) FROM participation_segments WHERE participation_id = $1", &[&pid])
+        .unwrap();
+    let old_count: i64 = count_rows.get(0).get(0);
+    if old_count > 0 {
+        println!("Participation already has all data set! Need to implement multi attempt support...");
+        return;
+    }
+
     let segment_rows = db.query("SELECT
                                     *
                                  FROM
@@ -76,7 +85,6 @@ fn main() {
     for row in &segment_rows {
         let sid: i64 = row.get("id");
         let segment_rid: i64 = row.get("route_id");
-        println!("Segment {}", sid);
 
         let matched_rows = db.query("SELECT
                                         ST_Intersection(ST_Buffer(segment.route, 2, 'endcap=flat join=round'), participation.route) AS cut,
@@ -119,12 +127,6 @@ fn main() {
                     if diff >= chrono::Duration::seconds(0) {
                         num_matched += 1;
                         total_elapsed = total_elapsed + diff;
-                        println!(
-                            "\tMatch {} -> {} ({:?})",
-                            distance_start,
-                            distance_end,
-                            diff
-                        );
                         break;
                     }
                 }
@@ -132,7 +134,7 @@ fn main() {
             Some(Err(..)) => {
                 let ls: ewkb::LineString = matched_rows.get(0).get("cut");
 
-                let points = ls.points;
+                let points = &ls.points;
                 let start = &points[0];
                 let end = &(points.last().unwrap());
 
@@ -153,17 +155,25 @@ fn main() {
                     if diff >= chrono::Duration::seconds(0) {
                         num_matched += 1;
                         total_elapsed = total_elapsed + diff;
-                        println!(
-                            "\tMatch {} -> {} ({:?})",
-                            distance_start,
-                            distance_end,
-                            diff
-                        );
+
+                        let seconds: i64 = diff.num_seconds();
+                        db.execute(
+                            "INSERT INTO participation_segments (participation_id, segment_id, elapsed_seconds, geom) VALUES ($1, $2, $3, $4)",
+                            &[&pid, &sid, &seconds, &ls],
+                        ).unwrap();
                     }
                 }
             }
         }
     }
+
+    // TODO: update this from DB instead of from here
+    let seconds: i64 = total_elapsed.num_seconds();
+    db.execute(
+        "UPDATE participations SET total_elapsed_seconds = $1
+        WHERE id = $2",
+        &[&seconds, &pid],
+    ).unwrap();
 
     println!(
         "Matched {} out of {} segments for a total time of {} seconds",

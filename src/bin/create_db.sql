@@ -46,13 +46,13 @@ CREATE TABLE participations (
 	user_id BIGINT REFERENCES users(id),
 	route_id BIGINT NOT NULL,
 	source_id BIGINT REFERENCES source_routes(id),
-	total_elapsed INTERVAL DEFAULT NULL,
+	total_elapsed_seconds BIGINT DEFAULT NULL,
 	geom GEOGRAPHY(LINESTRING,4326) DEFAULT NULL
 );
 
 CREATE TABLE participation_segments (
 	participation_id BIGINT REFERENCES participations(id) ON UPDATE CASCADE ON DELETE CASCADE,
 	segment_id BIGINT REFERENCES segments(id) ON UPDATE CASCADE,
-	elapsed INTERVAL DEFAULT NULL,
+	elapsed_seconds BIGINT DEFAULT NULL,
 	geom GEOGRAPHY DEFAULT NULL
 );
