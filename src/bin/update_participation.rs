@@ -62,11 +62,15 @@ fn main() {
     let eid: i64 = participation_rows.get(0).get("event_id");
 
     // TODO: handle the case where the user submits many atempts on a single event
-    let count_rows = db.query("SELECT COUNT(segment_id) FROM participation_segments WHERE participation_id = $1", &[&pid])
-        .unwrap();
+    let count_rows = db.query(
+        "SELECT COUNT(segment_id) FROM participation_segments WHERE participation_id = $1",
+        &[&pid],
+    ).unwrap();
     let old_count: i64 = count_rows.get(0).get(0);
     if old_count > 0 {
-        println!("Participation already has all data set! Need to implement multi attempt support...");
+        println!(
+            "Participation already has all data set! Need to implement multi attempt support..."
+        );
         return;
     }
 
@@ -167,18 +171,26 @@ fn main() {
         }
     }
 
-    // TODO: update this from DB instead of from here
-    let seconds: i64 = total_elapsed.num_seconds();
-    db.execute(
-        "UPDATE participations SET total_elapsed_seconds = $1
-        WHERE id = $2",
-        &[&seconds, &pid],
-    ).unwrap();
+    if num_matched == segment_rows.len() {
+        // TODO: update this from DB instead of from here
+        let seconds: i64 = total_elapsed.num_seconds();
+        db.execute(
+            "UPDATE participations SET total_elapsed_seconds = $1
+            WHERE id = $2",
+            &[&seconds, &pid],
+        ).unwrap();
 
-    println!(
-        "Matched {} out of {} segments for a total time of {} seconds",
-        num_matched,
-        segment_rows.len(),
-        total_elapsed.num_seconds()
-    );
+        println!(
+            "Matched {} out of {} segments for a total time of {} seconds",
+            num_matched,
+            segment_rows.len(),
+            total_elapsed.num_seconds()
+        );
+    } else {
+        println!(
+            "Matched {} out of {} segments. Not enough to qualify for a finished participation",
+            num_matched,
+            segment_rows.len(),
+        );
+    }
 }
