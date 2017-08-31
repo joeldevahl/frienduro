@@ -1,4 +1,3 @@
-
 extern crate simplenduro;
 extern crate getopts;
 extern crate postgis;
