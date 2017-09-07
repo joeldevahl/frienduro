@@ -17,7 +17,7 @@ pub struct Point {
     pub lat: f64,
     pub lon: f64,
     pub ele: f64,
-    pub utc: DateTime<UTC>,
+    pub utc: DateTime<Utc>,
 }
 
 pub fn parse_gpx(gpx_data: String) -> Result<Vec<Point>, io::Error> {
@@ -31,7 +31,7 @@ pub fn parse_gpx(gpx_data: String) -> Result<Vec<Point>, io::Error> {
         let mut lat: f64 = 0.0;
         let mut lon: f64 = 0.0;
         let mut ele: f64 = 0.0; // TODO: default elevation?
-        let mut utc: DateTime<UTC> = UTC::now(); // TODO: default time?
+        let mut utc: DateTime<Utc> = Utc::now(); // TODO: default time?
 
         match trkpt.get_attr("lat") {
             Some(val) => lat = val.parse().unwrap(),

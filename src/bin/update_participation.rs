@@ -15,7 +15,7 @@ fn print_usage(program: &str, opts: Options) {
     print!("{}", opts.usage(&brief));
 }
 
-fn interp_point(db: &postgres::Connection, rid: i64, point: &ewkb::Point) -> DateTime<UTC> {
+fn interp_point(db: &postgres::Connection, rid: i64, point: &ewkb::Point) -> DateTime<Utc> {
     // TODO: asumes we only passes once around the segment
     let rows = db.query(
         "SELECT ts
