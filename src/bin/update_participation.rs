@@ -28,6 +28,39 @@ fn interp_point(db: &postgres::Connection, rid: i64, point: &ewkb::Point) -> Dat
     return rows.get(0).get(0);
 }
 
+fn match_segment(db: &postgres::Connection, ls: ewkb::LineString, segment_start: &ewkb::Point, segment_end: &ewkb::Point, pid: i64, rid: i64, sid: i64)  -> Option<chrono::Duration> {
+    let points = &ls.points;
+    let start = &points[0];
+    let end = &(points.last().unwrap());
+
+    let distance_rows = db.query(
+        "SELECT
+        ST_Distance($1::geography, $2::geography) AS dist_start,
+        ST_Distance($3::geography, $4::geography) AS dist_end",
+        &[&segment_start, &start, &segment_end, &end],
+    ).unwrap();
+
+    let distance_start: f64 = distance_rows.get(0).get(0);
+    let distance_end: f64 = distance_rows.get(0).get(1);
+    if distance_start < 2.0 && distance_end < 2.0 {
+        let start_time = interp_point(&db, rid, start);
+        let end_time = interp_point(&db, rid, end);
+        let diff = end_time.signed_duration_since(start_time);
+
+        if diff >= chrono::Duration::seconds(0) {
+            let seconds: i64 = diff.num_seconds();
+            db.execute(
+                "INSERT INTO participation_segments (participation_id, segment_id, elapsed_seconds, geom) VALUES ($1, $2, $3, $4)",
+                &[&pid, &sid, &seconds, &ls],
+            ).unwrap();
+
+            return Some(diff);
+        }
+    }
+
+    return None;
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let program = args[0].clone();
@@ -90,7 +123,7 @@ fn main() {
         let segment_rid: i64 = row.get("route_id");
 
         let matched_rows = db.query("SELECT
-                                        ST_Intersection(ST_Buffer(segment.route, 2, 'endcap=flat join=round'), participation.route) AS cut,
+                                        ST_Intersection(ST_Buffer(segment.route, 10, 'endcap=flat join=round'), participation.route) AS cut,
                                         segment.route AS segment,
                                         ST_StartPoint(segment.route::geometry) AS segment_start,
                                         ST_EndPoint(segment.route::geometry) AS segment_end,
@@ -110,61 +143,24 @@ fn main() {
         match is_mls {
             None => (),
             Some(Ok(mls)) => for ls in mls.lines {
-                let points = ls.points;
-                let start = &points[0];
-                let end = &(points.last().unwrap());
-
-                let distance_rows = db.query(
-                    "SELECT
-                        ST_Distance($1::geography, $2::geography) AS dist_start,
-                        ST_Distance($3::geography, $4::geography) AS dist_end",
-                    &[&segment_start, &start, &segment_end, &end],
-                ).unwrap();
-
-                let distance_start: f64 = distance_rows.get(0).get(0);
-                let distance_end: f64 = distance_rows.get(0).get(1);
-                if distance_start < 2.0 && distance_end < 2.0 {
-                    let start_time = interp_point(&db, rid, start);
-                    let end_time = interp_point(&db, rid, end);
-                    let diff = end_time.signed_duration_since(start_time);
-                    if diff >= chrono::Duration::seconds(0) {
+                match match_segment(&db, ls, &segment_start, &segment_end, pid, rid, sid)
+                {
+                    Some(seconds) => {
                         num_matched += 1;
-                        total_elapsed = total_elapsed + diff;
-                        break;
-                    }
+                        total_elapsed = total_elapsed + seconds;
+                    },
+                    None => (),
                 }
             },
             Some(Err(..)) => {
                 let ls: ewkb::LineString = matched_rows.get(0).get("cut");
-
-                let points = &ls.points;
-                let start = &points[0];
-                let end = &(points.last().unwrap());
-
-                let distance_rows = db.query(
-                    "SELECT
-                    ST_Distance($1::geography, $2::geography) AS dist_start,
-                    ST_Distance($3::geography, $4::geography) AS dist_end",
-                    &[&segment_start, &start, &segment_end, &end],
-                ).unwrap();
-
-                let distance_start: f64 = distance_rows.get(0).get(0);
-                let distance_end: f64 = distance_rows.get(0).get(1);
-                if distance_start < 2.0 && distance_end < 2.0 {
-                    let start_time = interp_point(&db, rid, start);
-                    let end_time = interp_point(&db, rid, end);
-                    let diff = end_time.signed_duration_since(start_time);
-
-                    if diff >= chrono::Duration::seconds(0) {
+                match match_segment(&db, ls, &segment_start, &segment_end, pid, rid, sid)
+                {
+                    Some(seconds) => {
                         num_matched += 1;
-                        total_elapsed = total_elapsed + diff;
-
-                        let seconds: i64 = diff.num_seconds();
-                        db.execute(
-                            "INSERT INTO participation_segments (participation_id, segment_id, elapsed_seconds, geom) VALUES ($1, $2, $3, $4)",
-                            &[&pid, &sid, &seconds, &ls],
-                        ).unwrap();
-                    }
+                        total_elapsed = total_elapsed + seconds;
+                    },
+                    None => (),
                 }
             }
         }
