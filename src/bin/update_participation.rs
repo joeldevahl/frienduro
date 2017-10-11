@@ -148,6 +148,7 @@ fn main() {
                     Some(seconds) => {
                         num_matched += 1;
                         total_elapsed = total_elapsed + seconds;
+                        break; // TODO: match several times?
                     },
                     None => (),
                 }
