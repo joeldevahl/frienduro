@@ -51,7 +51,10 @@ fn main() {
     ).unwrap();
     for (i, event) in event_rows.into_iter().enumerate() {
         let uid: i64 = event.get("user_id");
-        let elapsed: i64 = event.get("total_elapsed_seconds");
-        println!("{} - {} {}s", i + 1, uid, elapsed);
+        let maybe_elapsed: Option<postgres::Result<i64>> = event.get_opt("total_elapsed_seconds");
+        match maybe_elapsed {
+            Some(Ok(elapsed)) => println!("{} - {} {}s", i + 1, uid, elapsed),
+            Some(Err(..)) | None => println!("{} - {} DNF", i + 1, uid),
+        }
     }
 }

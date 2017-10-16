@@ -195,16 +195,18 @@ fn main() {
     let mut completed_participation = true;
     let mut total_elapsed: i64 = 0;
     for segment_info in matched_segments {
-        completed_participation &= (segment_info.matches.len() != 0);
+        let valid = (segment_info.matches.len() != 0);
         let mut smallest: i64 = std::i64::MAX;
         for segment_match in segment_info.matches {
-
             if segment_match.elapsed < smallest {
                 smallest = segment_match.elapsed;
             }
         }
 
-        total_elapsed += smallest;
+        completed_participation &= valid;
+        if valid {
+            total_elapsed += smallest;
+        }
     }
 
     if completed_participation {
