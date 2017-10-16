@@ -30,10 +30,7 @@ pub fn main() {
         .bind(&addr, NewHandlerService::new(|| Ok(say_hello)))
         .unwrap();
 
-    println!(
-        "Listening on http://{}",
-        server.local_addr().unwrap()
-    );
+    println!("Listening on http://{}", server.local_addr().unwrap());
 
     server.run().unwrap();
 }

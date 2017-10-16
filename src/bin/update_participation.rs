@@ -10,6 +10,15 @@ use postgis::ewkb;
 use chrono::prelude::*;
 use self::simplenduro::establish_connection;
 
+struct SegmentMatch {
+    pub elapsed: i64,
+}
+
+struct SegmentInfo {
+    pub sid: i64,
+    pub matches: Vec<SegmentMatch>,
+}
+
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
     print!("{}", opts.usage(&brief));
@@ -28,7 +37,15 @@ fn interp_point(db: &postgres::Connection, rid: i64, point: &ewkb::Point) -> Dat
     return rows.get(0).get(0);
 }
 
-fn match_segment(db: &postgres::Connection, ls: ewkb::LineString, segment_start: &ewkb::Point, segment_end: &ewkb::Point, pid: i64, rid: i64, sid: i64)  -> Option<chrono::Duration> {
+fn match_segment(
+    db: &postgres::Connection,
+    ls: ewkb::LineString,
+    segment_start: &ewkb::Point,
+    segment_end: &ewkb::Point,
+    pid: i64,
+    rid: i64,
+    sid: i64,
+) -> Option<chrono::Duration> {
     let points = &ls.points;
     let start = &points[0];
     let end = &(points.last().unwrap());
@@ -116,11 +133,16 @@ fn main() {
                                  &[&eid])
         .unwrap();
 
-    let mut num_matched = 0;
-    let mut total_elapsed = chrono::Duration::seconds(0);
+    let mut matched_segments: Vec<SegmentInfo> = Vec::new();
+
     for row in &segment_rows {
         let sid: i64 = row.get("id");
         let segment_rid: i64 = row.get("route_id");
+
+        let mut segment_info = SegmentInfo {
+            sid,
+            matches: Vec::new(),
+        };
 
         let matched_rows = db.query("SELECT
                                         ST_Intersection(ST_Buffer(segment.route, 10, 'endcap=flat join=round'), participation.route) AS cut,
@@ -142,51 +164,64 @@ fn main() {
             matched_rows.get(0).get_opt("cut");
         match is_mls {
             None => (),
-            Some(Ok(mls)) => for ls in mls.lines {
-                match match_segment(&db, ls, &segment_start, &segment_end, pid, rid, sid)
-                {
-                    Some(seconds) => {
-                        num_matched += 1;
-                        total_elapsed = total_elapsed + seconds;
-                        break; // TODO: match several times?
-                    },
-                    None => (),
+            Some(Ok(mls)) => {
+                for ls in mls.lines {
+                    match match_segment(&db, ls, &segment_start, &segment_end, pid, rid, sid) {
+                        Some(seconds) => {
+                            let segment_match = SegmentMatch { elapsed: seconds.num_seconds() };
+                            segment_info.matches.push(segment_match);
+                        }
+                        None => (),
+                    }
                 }
-            },
+            }
             Some(Err(..)) => {
                 let ls: ewkb::LineString = matched_rows.get(0).get("cut");
-                match match_segment(&db, ls, &segment_start, &segment_end, pid, rid, sid)
-                {
+                match match_segment(&db, ls, &segment_start, &segment_end, pid, rid, sid) {
                     Some(seconds) => {
-                        num_matched += 1;
-                        total_elapsed = total_elapsed + seconds;
-                    },
+                        let segment_match = SegmentMatch { elapsed: seconds.num_seconds() };
+                        segment_info.matches.push(segment_match);
+                    }
                     None => (),
                 }
             }
         }
+
+        matched_segments.push(segment_info);
     }
 
-    if num_matched == segment_rows.len() {
+    // TODO: more advanced completion logic
+    // for now we just make sure all segments are matched, and take the fastest time
+    let mut completed_participation = true;
+    let mut total_elapsed: i64 = 0;
+    for segment_info in matched_segments {
+        completed_participation &= (segment_info.matches.len() != 0);
+        let mut smallest: i64 = std::i64::MAX;
+        for segment_match in segment_info.matches {
+
+            if segment_match.elapsed < smallest {
+                smallest = segment_match.elapsed;
+            }
+        }
+
+        total_elapsed += smallest;
+    }
+
+    if completed_participation {
         // TODO: update this from DB instead of from here
-        let seconds: i64 = total_elapsed.num_seconds();
         db.execute(
             "UPDATE participations SET total_elapsed_seconds = $1
             WHERE id = $2",
-            &[&seconds, &pid],
+            &[&total_elapsed, &pid],
         ).unwrap();
 
         println!(
-            "Matched {} out of {} segments for a total time of {} seconds",
-            num_matched,
-            segment_rows.len(),
-            total_elapsed.num_seconds()
+            "Matched all segments for a total time of {} seconds",
+            total_elapsed
         );
     } else {
         println!(
-            "Matched {} out of {} segments. Not enough to qualify for a finished participation",
-            num_matched,
-            segment_rows.len(),
+            "Failed to match all segments. Not enough to qualify for a finished participation"
         );
     }
 }
