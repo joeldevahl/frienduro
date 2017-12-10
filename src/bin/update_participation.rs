@@ -145,7 +145,7 @@ fn main() {
         };
 
         let matched_rows = db.query("SELECT
-                                        ST_Intersection(ST_Buffer(segment.route, 10, 'endcap=flat join=round'), participation.route) AS cut,
+                                        ST_Intersection(ST_Buffer(segment.route, 20, 'endcap=flat join=round'), participation.route) AS cut,
                                         segment.route AS segment,
                                         ST_StartPoint(segment.route::geometry) AS segment_start,
                                         ST_EndPoint(segment.route::geometry) AS segment_end,
@@ -192,10 +192,10 @@ fn main() {
 
     // TODO: more advanced completion logic
     // for now we just make sure all segments are matched, and take the fastest time
-    let mut completed_participation = true;
     let mut total_elapsed: i64 = 0;
+    let mut total_valid: usize = 0;
     for segment_info in matched_segments {
-        let valid = (segment_info.matches.len() != 0);
+        let valid = segment_info.matches.len() != 0;
         let mut smallest: i64 = std::i64::MAX;
         for segment_match in segment_info.matches {
             if segment_match.elapsed < smallest {
@@ -203,13 +203,13 @@ fn main() {
             }
         }
 
-        completed_participation &= valid;
         if valid {
             total_elapsed += smallest;
+            total_valid += 1;
         }
     }
 
-    if completed_participation {
+    if total_valid == segment_rows.len() {
         // TODO: update this from DB instead of from here
         db.execute(
             "UPDATE participations SET total_elapsed_seconds = $1
@@ -223,7 +223,9 @@ fn main() {
         );
     } else {
         println!(
-            "Failed to match all segments. Not enough to qualify for a finished participation"
+            "Failed to match all segments ({} of {}). Not enough to qualify for a finished participation",
+            total_valid,
+            segment_rows.len()
         );
     }
 }
