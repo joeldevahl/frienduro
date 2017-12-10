@@ -1,19 +1,20 @@
 [package]
-
+authors = ["Joel de Vahl <joel@devahl.com>"]
 name = "simplenduro"
 version = "0.0.1"
-authors = [ "Joel de Vahl <joel@devahl.com>" ]
 
 [dependencies]
-postgres = { version = "0.15", features = ["with-chrono"] }
-postgis = "0.5"
-chrono = "0.4"
+chrono = "0.4.*"
+dotenv = "0.10.*"
+elementtree = "0.5.*"
+getopts = "0.2.*"
+postgis = "0.5.*"
 
-gotham = "0.1"
-hyper = "0.11"
-futures = "0.1"
-mime = "0.3"
+gotham = "0.1.*"
+futures = "0.1.*"
+hyper = "0.11.*"
+mime = "0.3.*"
 
-elementtree = "0.4"
-dotenv = "0.10"
-getopts = "0.2"
+[dependencies.postgres]
+features = ["with-chrono"]
+version = "0.15.*"
