@@ -59,7 +59,7 @@ fn match_segment(
 
     let distance_start: f64 = distance_rows.get(0).get(0);
     let distance_end: f64 = distance_rows.get(0).get(1);
-    if distance_start < 2.0 && distance_end < 2.0 {
+    if distance_start < 20.0 && distance_end < 20.0 {
         let start_time = interp_point(&db, rid, start);
         let end_time = interp_point(&db, rid, end);
         let diff = end_time.signed_duration_since(start_time);

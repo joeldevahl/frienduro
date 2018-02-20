@@ -42,7 +42,7 @@ fn main() {
         None => 0.0,
     } / 100.0;
 
-    let tot_pad = pad * (splits as f32);
+    let tot_pad = pad * ((splits + 3) as f32);
     let split_len = (1.0 - tot_pad) / ((splits + 1) as f32);
 
     if name == None || file == None {
@@ -66,7 +66,7 @@ fn main() {
     let samples_per_pad = ((num_positions as f32) * pad) as usize;
 
     for s in 0..splits + 1 {
-        let start = s * (samples_per_split + samples_per_pad);
+        let start = s * (samples_per_split + samples_per_pad) + samples_per_pad;
         let end = start + samples_per_split;
 
         let segment_name = format!("{} ({})", n, s);
