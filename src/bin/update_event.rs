@@ -46,15 +46,15 @@ fn main() {
     println!("Results for event {} ({}):", event_name, eid);
 
     let event_rows = db.query(
-        "SELECT * FROM participations WHERE event_id = $1 ORDER BY total_elapsed_seconds ASC",
+        "SELECT * FROM participations INNER JOIN users ON participations.event_id = $1 AND users.id = participations.user_id ORDER BY participations.total_elapsed_seconds ASC",
         &[&eid],
     ).unwrap();
     for (i, event) in event_rows.into_iter().enumerate() {
-        let uid: i64 = event.get("user_id");
+        let username: String = event.get("name");
         let maybe_elapsed: Option<postgres::Result<i64>> = event.get_opt("total_elapsed_seconds");
         match maybe_elapsed {
-            Some(Ok(elapsed)) => println!("{} - {} {}s", i + 1, uid, elapsed),
-            Some(Err(..)) | None => println!("{} - {} DNF", i + 1, uid),
+            Some(Ok(elapsed)) => println!("{} - {} {}s", i + 1, username, elapsed),
+            Some(Err(..)) | None => println!("{} - {} DNF", i + 1, username),
         }
     }
 }
