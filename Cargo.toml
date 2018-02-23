@@ -4,17 +4,16 @@ name = "simplenduro"
 version = "0.0.1"
 
 [dependencies]
-chrono = "0.4.*"
-dotenv = "0.10.*"
-elementtree = "0.5.*"
-getopts = "0.2.*"
-postgis = "0.5.*"
-
-gotham = "0.1.*"
-futures = "0.1.*"
-hyper = "0.11.*"
-mime = "0.3.*"
+chrono = "0.4.0"
+dotenv = "0.11.0"
+elementtree = "0.5.0"
+futures = "0.1.18"
+getopts = "0.2.17"
+gotham = "0.1.2"
+hyper = "0.11.18"
+mime = "0.3.5"
+postgis = "0.5.0"
 
 [dependencies.postgres]
 features = ["with-chrono"]
-version = "0.15.*"
+version = "0.15.2"
