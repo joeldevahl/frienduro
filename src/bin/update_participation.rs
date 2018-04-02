@@ -1,4 +1,4 @@
-extern crate simplenduro;
+extern crate frienduro;
 extern crate getopts;
 extern crate postgis;
 extern crate postgres;
@@ -8,7 +8,7 @@ use getopts::Options;
 use std::env;
 use postgis::ewkb;
 use chrono::prelude::*;
-use self::simplenduro::establish_connection;
+use self::frienduro::establish_connection;
 
 struct SegmentMatch {
     pub elapsed: i64,

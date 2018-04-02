@@ -10,7 +10,7 @@ extern crate diesel;
 extern crate r2d2;
 extern crate r2d2_diesel;
 
-extern crate simplenduro;
+extern crate frienduro;
 
 use dotenv::dotenv;
 use std::env;
@@ -25,7 +25,7 @@ use diesel::prelude::*;
 use r2d2::{Pool, PooledConnection};
 use r2d2_diesel::ConnectionManager;
 
-use simplenduro::models::*;
+use frienduro::models::*;
 
 pub fn create_db_pool() -> Pool<ConnectionManager<PgConnection>> {
     dotenv().ok();
@@ -58,7 +58,7 @@ impl<'a, 'r> FromRequest<'a, 'r> for DB {
 }
 
 fn load_user(conn: &PgConnection, uid:i64) -> Option<User> {
-    use simplenduro::schema::users::dsl::*;
+    use frienduro::schema::users::dsl::*;
     users
         .filter(id.eq(uid))
         .limit(1)
@@ -78,12 +78,12 @@ fn user(db: DB, uid: i64) -> String {
 
 #[get("/event/<eid>")]
 fn event(db: DB, eid: i64) -> String {
-    use simplenduro::schema::events::dsl::*;
-    use simplenduro::schema::participations::dsl::*;
+    use frienduro::schema::events::dsl::*;
+    use frienduro::schema::participations::dsl::*;
 
     let conn = db.conn();
     let event_rows = events
-        .filter(simplenduro::schema::events::dsl::id.eq(eid))
+        .filter(frienduro::schema::events::dsl::id.eq(eid))
         .limit(1)
         .load::<Event>(conn)
         .expect("Error loading event");

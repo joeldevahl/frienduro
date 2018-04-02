@@ -1,9 +1,9 @@
-extern crate simplenduro;
+extern crate frienduro;
 extern crate getopts;
 
 use getopts::Options;
 use std::env;
-use self::simplenduro::establish_connection;
+use self::frienduro::establish_connection;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);

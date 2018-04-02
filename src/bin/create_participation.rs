@@ -1,12 +1,12 @@
-extern crate simplenduro;
+extern crate frienduro;
 extern crate getopts;
 extern crate postgis;
 
 use getopts::Options;
 use std::env;
 use postgis::ewkb;
-use self::simplenduro::establish_connection;
-use self::simplenduro::gpx;
+use self::frienduro::establish_connection;
+use self::frienduro::gpx;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);

@@ -1,4 +1,4 @@
-extern crate simplenduro;
+extern crate frienduro;
 extern crate getopts;
 extern crate postgis;
 extern crate postgres;
@@ -6,7 +6,7 @@ extern crate chrono;
 
 use getopts::Options;
 use std::env;
-use self::simplenduro::establish_connection;
+use self::frienduro::establish_connection;
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);

@@ -1,6 +1,6 @@
 [package]
 authors = ["Joel de Vahl <joel@devahl.com>"]
-name = "simplenduro"
+name = "frienduro"
 version = "0.0.1"
 
 [dependencies]

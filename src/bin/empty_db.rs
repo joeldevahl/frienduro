@@ -1,5 +1,5 @@
-extern crate simplenduro;
-use self::simplenduro::establish_connection;
+extern crate frienduro;
+use self::frienduro::establish_connection;
 
 const EMPTY_DB_SQL: &'static str = include_str!("empty_db.sql");
 
