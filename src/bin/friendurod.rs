@@ -1,14 +1,11 @@
-#![feature(plugin)]
-#![plugin(rocket_codegen)]
-
 #[macro_use]
 extern crate lazy_static;
 extern crate dotenv;
-extern crate rocket;
+extern crate actix_web;
+extern crate postgres;
 #[macro_use]
-extern crate diesel;
 extern crate r2d2;
-extern crate r2d2_diesel;
+extern crate r2d2_postgres;
 
 extern crate frienduro;
 
@@ -16,99 +13,75 @@ use dotenv::dotenv;
 use std::env;
 use std::fmt;
 use std::fmt::Write;
-use rocket::request::{Outcome, FromRequest};
-use rocket::Outcome::{Success, Failure};
-use rocket::http::Status;
-use rocket::Request;
-use diesel::PgConnection;
-use diesel::prelude::*;
+
+use actix_web::{server, App, HttpRequest, HttpResponse};
+use actix_web::http::{Method, StatusCode};
 use r2d2::{Pool, PooledConnection};
-use r2d2_diesel::ConnectionManager;
+use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 
-use frienduro::models::*;
-
-pub fn create_db_pool() -> Pool<ConnectionManager<PgConnection>> {
+pub fn create_db_pool() -> Pool<PostgresConnectionManager> {
     dotenv().ok();
 
     let database_url = env::var("DATABASE_URL").unwrap();
-    let manager = ConnectionManager::<PgConnection>::new(database_url);
-    Pool::<ConnectionManager<PgConnection>>::new(manager).unwrap()
+    let manager = PostgresConnectionManager::new(database_url, TlsMode::None).unwrap();
+    Pool::<PostgresConnectionManager>::new(manager).unwrap()
 }
 
 lazy_static! {
-    pub static ref DB_POOL: Pool<ConnectionManager<PgConnection>> = create_db_pool();
+    pub static ref DB_POOL: Pool<PostgresConnectionManager> = create_db_pool();
 }
 
-pub struct DB(PooledConnection<ConnectionManager<PgConnection>>);
+fn user(req: &HttpRequest) -> HttpResponse {
+    let db = DB_POOL.get().unwrap();
 
-impl DB {
-    pub fn conn(&self) -> &PgConnection {
-        &*self.0
-    }
+    let uid = req.match_info().get("id").unwrap().parse::<i64>().unwrap();
+
+    let user_rows = db.query("SELECT * FROM users WHERE id = $1", &[&uid])
+        .unwrap();
+
+    let result: String  = user_rows.get(0).get("name");
+
+    HttpResponse::Ok()
+        .content_type("text/plain")
+        .body(result)
 }
 
-impl<'a, 'r> FromRequest<'a, 'r> for DB {
-    type Error = r2d2::Error;
-    fn from_request(_: &'a Request<'r>) -> Outcome<Self, Self::Error> {
-        match DB_POOL.get() {
-            Ok(conn) => Success(DB(conn)),
-            Err(e) => Failure((Status::InternalServerError, e)),
-        }
-    }
-}
+fn event(req: &HttpRequest) -> HttpResponse {
 
-fn load_user(conn: &PgConnection, uid:i64) -> Option<User> {
-    use frienduro::schema::users::dsl::*;
-    users
-        .filter(id.eq(uid))
-        .limit(1)
-        .load::<User>(conn)
-        .expect("Error loading user")
-        .pop()
-}
+    let db = DB_POOL.get().unwrap();
 
-#[get("/user/<uid>")]
-fn user(db: DB, uid: i64) -> String {
-    let conn = db.conn();
-    match load_user(conn, uid) {
-        None => "".to_string(),
-        Some(user) => format!("{}\n", user.name)
-    }
-}
+    let eid = req.match_info().get("id").unwrap().parse::<i64>().unwrap();
 
-#[get("/event/<eid>")]
-fn event(db: DB, eid: i64) -> String {
-    use frienduro::schema::events::dsl::*;
-    use frienduro::schema::participations::dsl::*;
+    let event_rows = db.query("SELECT * FROM events WHERE id = $1", &[&eid])
+        .unwrap();
+    let participation_rows = db.query("SELECT * FROM participations WHERE (event_id = $1 AND total_elapsed_seconds IS NOT NULL) ORDER BY total_elapsed_seconds DESC", &[&eid])
+        .unwrap();
 
-    let conn = db.conn();
-    let event_rows = events
-        .filter(frienduro::schema::events::dsl::id.eq(eid))
-        .limit(1)
-        .load::<Event>(conn)
-        .expect("Error loading event");
-    let participation_rows = participations
-        .filter(event_id.eq(eid))
-        .filter(total_elapsed_seconds.gt(0))
-        .load::<Participation>(conn)
-        .expect("Error loading participations");
-
-    let mut results = format!("Results for {}:\n", event_rows[0].name);
-    for (i, participation) in participation_rows.iter().enumerate() {
-        let username = match load_user(conn, participation.user_id) {
-            None => "Anonymous".to_string(),
-            Some(user) => user.name
-        };
-        let seconds: i64 = participation.total_elapsed_seconds;
+    let event_name: String = event_rows.get(0).get("name");
+    let mut results = format!("Results for {}:\n", event_name);
+    for (i, participation_row) in participation_rows.iter().enumerate() {
+        let uid: i64 = participation_row.get("user_id");
+        let user_rows = db.query("SELECT * FROM users WHERE id = $1", &[&uid])
+            .unwrap();
+        let user_name: String = user_rows.get(0).get("name");
+        let seconds: i64 = participation_row.get("total_elapsed_seconds");
         
-        write!(&mut results, "{} {} - {} seconds\n", i + 1, username, seconds);
+        write!(&mut results, "{} {} - {} seconds\n", i + 1, user_name, seconds);
     }
 
-    return results;
+    HttpResponse::Ok()
+    .content_type("text/plain")
+    .body(results)
 }
 
 fn main() {
     dotenv().ok();
 
-    rocket::ignite().mount("/", routes![user, event]).launch();
+    server::new(|| App::new()
+            .resource("/user/{id}", |r| r.method(Method::GET).f(user))
+            .resource("/event/{id}", |r| r.method(Method::GET).f(event))
+        )
+        .bind("127.0.0.1:8088")
+        .unwrap()
+        .run();
 }

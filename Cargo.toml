@@ -4,18 +4,13 @@ name = "frienduro"
 version = "0.0.1"
 
 [dependencies]
-chrono = "0.4.0"
-dotenv = "0.11.0"
-lazy_static = "1.0.0"
+chrono = "0.4.6"
+dotenv = "0.13.0"
+lazy_static = "1.1.0"
 elementtree = "0.5.0"
-getopts = "0.2.17"
+getopts = "0.2.18"
+postgres = { version = "0.15.2", features = ["with-chrono"] }
 postgis = "0.5.0"
-rocket = "0.3.6"
-rocket_codegen = "0.3.6"
-diesel = { version = "1.0.0", features = ["postgres"] }
+actix-web = "0.7"
 r2d2 = "0.8.2"
-r2d2-diesel = "1.0.0"
-
-[dependencies.postgres]
-features = ["with-chrono"]
-version = "0.15.2"
+r2d2_postgres = "0.14.0"
