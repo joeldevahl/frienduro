@@ -3,7 +3,7 @@ extern crate getopts;
 
 use getopts::Options;
 use std::env;
-use self::frienduro::establish_connection;
+use self::frienduro::{establish_connection, create_user};
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
@@ -35,10 +35,6 @@ fn main() {
     }
 
     let db = establish_connection();
-    let rows = db.query(
-        "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
-        &[&name, &email],
-    ).unwrap();
-    let id: i64 = rows.get(0).get(0);
+    let id = create_user(&db, &name.unwrap(), &email.unwrap());
     println!("Created user with ID {}", id);
 }

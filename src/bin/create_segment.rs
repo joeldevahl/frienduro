@@ -5,7 +5,7 @@ extern crate postgis;
 use getopts::Options;
 use std::env;
 use postgis::ewkb;
-use self::frienduro::establish_connection;
+use self::frienduro::{establish_connection, create_source_route, get_new_route_id, store_points, create_segment};
 use self::frienduro::gpx;
 
 fn print_usage(program: &str, opts: Options) {
@@ -53,13 +53,11 @@ fn main() {
     let db = establish_connection();
 
     let gpx_data = gpx::read_whole_file(file.unwrap()).unwrap();
-    let source_rows = db.query(
-        "INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
-        &[&gpx_data],
-    ).unwrap();
-    let source_id: i64 = source_rows.get(0).get(0);
 
-    let points = gpx::parse_gpx(gpx_data).unwrap();
+    let source_id = create_source_route(&db, &gpx_data);
+
+    let points = gpx::parse_gpx(&gpx_data).unwrap();
+
     let n = name.unwrap();
     let num_positions = points.len();
     let samples_per_split = ((num_positions as f32) * split_len) as usize;
@@ -68,6 +66,9 @@ fn main() {
     for s in 0..splits + 1 {
         let start = s * (samples_per_split + samples_per_pad) + samples_per_pad;
         let end = start + samples_per_split;
+
+        let route_id = get_new_route_id(&db);
+        store_points(&db, route_id, &points);
 
         let segment_name = format!("{} ({})", n, s);
         let segment_rows = db.query("INSERT INTO segments (name, route_id, source_id) VALUES ($1, nextval('route_id_seq'), $2) RETURNING id, route_id",

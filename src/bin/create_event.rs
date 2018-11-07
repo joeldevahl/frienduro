@@ -3,7 +3,7 @@ extern crate getopts;
 
 use getopts::Options;
 use std::env;
-use self::frienduro::establish_connection;
+use self::frienduro::{establish_connection, create_event};
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options] SEGMENT_IDS...", program);
@@ -32,20 +32,10 @@ fn main() {
         return;
     }
 
+    let segment_ids: Vec<i64> = matches.free.iter().map(|x| x.parse().unwrap()).collect();
+
     let db = establish_connection();
-    let rows = db.query(
-        "INSERT INTO events (name) VALUES ($1) RETURNING id",
-        &[&name.unwrap()],
-    ).unwrap();
-    let id: i64 = rows.get(0).get(0);
-
-    for segment_id in matches.free {
-        let sid: i64 = segment_id.parse().unwrap();
-        db.execute(
-            "INSERT INTO event_segments (event_id, segment_id) VALUES ($1, $2)",
-            &[&id, &sid],
-        ).unwrap();
-    }
-
-    println!("Created event with ID {}", id);
+    let event_id = create_event(&db, &name.unwrap(), &segment_ids);
+    
+    println!("Created event with ID {}", event_id);
 }

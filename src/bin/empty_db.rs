@@ -1,10 +1,8 @@
 extern crate frienduro;
-use self::frienduro::establish_connection;
-
-const EMPTY_DB_SQL: &'static str = include_str!("empty_db.sql");
+use self::frienduro::{establish_connection, empty_db};
 
 fn main() {
     let db = establish_connection();
 
-    db.batch_execute(EMPTY_DB_SQL).unwrap();
+    empty_db(&db).unwrap();
 }

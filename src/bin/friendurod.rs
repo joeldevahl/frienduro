@@ -3,7 +3,6 @@ extern crate lazy_static;
 extern crate dotenv;
 extern crate actix_web;
 extern crate postgres;
-#[macro_use]
 extern crate r2d2;
 extern crate r2d2_postgres;
 
@@ -11,12 +10,11 @@ extern crate frienduro;
 
 use dotenv::dotenv;
 use std::env;
-use std::fmt;
 use std::fmt::Write;
 
 use actix_web::{server, App, HttpRequest, HttpResponse};
-use actix_web::http::{Method, StatusCode};
-use r2d2::{Pool, PooledConnection};
+use actix_web::http::{Method};
+use r2d2::{Pool};
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 
 pub fn create_db_pool() -> Pool<PostgresConnectionManager> {

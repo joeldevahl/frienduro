@@ -20,7 +20,7 @@ pub struct Point {
     pub utc: DateTime<Utc>,
 }
 
-pub fn parse_gpx(gpx_data: String) -> Result<Vec<Point>, io::Error> {
+pub fn parse_gpx(gpx_data: &String) -> Result<Vec<Point>, io::Error> {
     let mut points = Vec::new();
 
     let gpx = Element::from_reader(&mut gpx_data.as_bytes()).unwrap();

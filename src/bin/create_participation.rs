@@ -56,7 +56,7 @@ fn main() {
     let pid: i64 = part_rows.get(0).get(0);
     let rid: i64 = part_rows.get(0).get(1);
 
-    let points = gpx::parse_gpx(gpx_data).unwrap();
+    let points = gpx::parse_gpx(&gpx_data).unwrap();
     for point in points {
         let p = ewkb::Point {
             x: point.lon,

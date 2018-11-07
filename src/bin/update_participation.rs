@@ -156,7 +156,6 @@ fn main() {
                              &[&rid, &segment_rid],
         ).unwrap();
 
-        let segment: ewkb::LineString = matched_rows.get(0).get("segment");
         let segment_start: ewkb::Point = matched_rows.get(0).get("segment_start");
         let segment_end: ewkb::Point = matched_rows.get(0).get("segment_end");
 
