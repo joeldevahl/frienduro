@@ -36,7 +36,7 @@ pub fn empty_db(db: &Connection) -> Result<(), postgres::Error> {
     db.batch_execute(EMPTY_DB_SQL)
 }
 
-pub fn create_user(db: &Connection, name: &String, email: &String) -> i64 {
+pub fn create_user(db: &Connection, name: &str, email: &str) -> i64 {
     let rows = db.query(
         "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
         &[&name, &email],
@@ -44,7 +44,7 @@ pub fn create_user(db: &Connection, name: &String, email: &String) -> i64 {
     rows.get(0).get(0)
 }
 
-pub fn create_source_route(db: &Connection, gpx_data: &String) -> i64 {
+pub fn create_source_route(db: &Connection, gpx_data: &str) -> i64 {
     let rows = db.query(
         "INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
         &[&gpx_data],
@@ -57,7 +57,7 @@ pub fn get_new_route_id(db: &Connection) -> i64 {
     rows.get(0).get(0)
 }
 
-pub fn store_points(db: &Connection, route_id: i64, points: &Vec<gpx::Point>) {
+pub fn store_points(db: &Connection, route_id: i64, points: &[gpx::Point]) {
     for p in points {
         let point = ewkb::Point {
             x: p.lon,
@@ -71,7 +71,7 @@ pub fn store_points(db: &Connection, route_id: i64, points: &Vec<gpx::Point>) {
     }
 }
 
-pub fn create_segment(db: &Connection, name: &String, route_id: i64, source_id: i64) -> i64 {
+pub fn create_segment(db: &Connection, name: &str, route_id: i64, source_id: i64) -> i64 {
     let rows = db.query("INSERT INTO segments (name, route_id, source_id) VALUES ($1, $2, $3) RETURNING id",
         &[&name, &route_id, &source_id]
     ).unwrap();
@@ -87,7 +87,7 @@ pub fn create_segment(db: &Connection, name: &String, route_id: i64, source_id: 
     segment_id
 }
 
-pub fn create_event(db: &Connection, name: &String, segment_ids: &[i64]) -> i64{
+pub fn create_event(db: &Connection, name: &str, segment_ids: &[i64]) -> i64{
     let rows = db.query(
         "INSERT INTO events (name) VALUES ($1) RETURNING id",
         &[&name],
@@ -299,4 +299,27 @@ pub fn create_participation(db: &Connection, event_id: i64, user_id: i64, route_
     update_participation_timing(db, participation_id);
 
     participation_id
+}
+
+pub struct EventResult {
+    pub username: String,
+    pub time: i64,
+}
+
+pub fn get_event_results(db: &Connection, event_id: i64) -> Vec<EventResult> {
+    let event_rows = db.query(
+        "SELECT * FROM participations INNER JOIN users ON participations.event_id = $1 AND users.id = participations.user_id ORDER BY participations.total_elapsed_seconds ASC",
+        &[&event_id],
+    ).unwrap();
+
+    event_rows.iter().map(|row| {
+        let username: String = row.get("name");
+        let maybe_elapsed: Option<postgres::Result<i64>> = row.get_opt("total_elapsed_seconds");
+        let time = match maybe_elapsed {
+            Some(Ok(elapsed)) => elapsed,
+            Some(Err(..)) | None => 0,
+        };
+
+        EventResult { username, time }
+    }).collect()
 }

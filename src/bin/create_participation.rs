@@ -44,7 +44,7 @@ fn main() {
     let uid: i64 = uid_str.unwrap().parse().unwrap();
     let eid: i64 = eid_str.unwrap().parse().unwrap();
 
-    let gpx_data = gpx::read_whole_file(file.unwrap()).unwrap();
+    let gpx_data = gpx::read_whole_file(&file.unwrap()).unwrap();
     let source_rows = db.query(
         "INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
         &[&gpx_data],

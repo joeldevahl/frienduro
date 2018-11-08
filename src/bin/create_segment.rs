@@ -52,7 +52,7 @@ fn main() {
 
     let db = establish_connection();
 
-    let gpx_data = gpx::read_whole_file(file.unwrap()).unwrap();
+    let gpx_data = gpx::read_whole_file(&file.unwrap()).unwrap();
 
     let source_id = create_source_route(&db, &gpx_data);
 
@@ -68,33 +68,11 @@ fn main() {
         let end = start + samples_per_split;
 
         let route_id = get_new_route_id(&db);
-        store_points(&db, route_id, &points);
+        store_points(&db, route_id, &points[start..end]);
 
         let segment_name = format!("{} ({})", n, s);
-        let segment_rows = db.query("INSERT INTO segments (name, route_id, source_id) VALUES ($1, nextval('route_id_seq'), $2) RETURNING id, route_id",
-                     &[&segment_name, &source_id]).unwrap();
-        let sid: i64 = segment_rows.get(0).get(0);
-        let rid: i64 = segment_rows.get(0).get(1);
+        let segment_id = create_segment(&db, &segment_name, route_id, source_id);
 
-        for p in start..end {
-            let point = ewkb::Point {
-                x: points[p].lon,
-                y: points[p].lat,
-                srid: Some(4326),
-            };
-            db.execute(
-                "INSERT INTO points (geom, route_id, ts, ele) VALUES ($1, $2, $3, $4)",
-                &[&point, &rid, &points[p].utc, &points[p].ele],
-            ).unwrap();
-        }
-
-        db.execute(
-            "UPDATE segments SET geom = line.geom, geom_expanded = ST_Buffer(line.geom, 20, 'endcap=flat join=round')
-            FROM (SELECT ST_MakeLine(geom::geometry)::geography AS geom FROM points WHERE route_id = $1) AS line
-            WHERE id = $2",
-            &[&rid, &sid],
-        ).unwrap();
-
-        println!("Created segment with name {} and ID {}", segment_name, sid);
+        println!("Created segment with name {} and ID {}", segment_name, segment_id);
     }
 }

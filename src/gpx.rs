@@ -6,7 +6,7 @@ use std::io::prelude::*;
 
 use chrono::prelude::*;
 
-pub fn read_whole_file(filename: String) -> Result<String, io::Error> {
+pub fn read_whole_file(filename: &str) -> Result<String, io::Error> {
     let mut file = File::open(filename)?;
     let mut contents = String::new();
     file.read_to_string(&mut contents)?;

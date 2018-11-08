@@ -6,7 +6,7 @@ extern crate chrono;
 
 use getopts::Options;
 use std::env;
-use self::frienduro::establish_connection;
+use self::frienduro::{establish_connection, get_event_results};
 
 fn print_usage(program: &str, opts: Options) {
     let brief = format!("Usage: {} [options]", program);
@@ -45,16 +45,11 @@ fn main() {
     let event_name: String = event_rows.get(0).get("name");
     println!("Results for event {} ({}):", event_name, eid);
 
-    let event_rows = db.query(
-        "SELECT * FROM participations INNER JOIN users ON participations.event_id = $1 AND users.id = participations.user_id ORDER BY participations.total_elapsed_seconds ASC",
-        &[&eid],
-    ).unwrap();
-    for (i, event) in event_rows.into_iter().enumerate() {
-        let username: String = event.get("name");
-        let maybe_elapsed: Option<postgres::Result<i64>> = event.get_opt("total_elapsed_seconds");
-        match maybe_elapsed {
-            Some(Ok(elapsed)) => println!("{} - {} {}s", i + 1, username, elapsed),
-            Some(Err(..)) | None => println!("{} - {} DNF", i + 1, username),
+    let results = get_event_results(&db, event_id);
+    for (i, result) in results.iter().enumerate() {
+        match result.time {
+            0 => println!("{} - {} DNF", i + 1, result.username),
+            time => println!("{} - {} {}s", i + 1, result.username, time),
         }
     }
 }
