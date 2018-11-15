@@ -1,7 +1,7 @@
 extern crate dotenv;
+extern crate gpx;
 extern crate postgres;
 extern crate postgis;
-extern crate elementtree;
 extern crate chrono;
 
 use dotenv::dotenv;
@@ -11,7 +11,21 @@ use chrono::prelude::*;
 use postgres::{Connection, TlsMode};
 use postgis::ewkb;
 
-pub mod gpx;
+use std::io::prelude::*;
+use std::fs::File;
+
+pub fn read_whole_file(path: &str) -> Result<String, std::io::Error> {
+    let mut file = File::open(path)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    return Ok(contents);
+}
+
+pub fn read_gpx(gpx_data: &str) -> Result<gpx::Gpx, gpx::errors::Error> {
+    let reader = std::io::Cursor::new(gpx_data.as_bytes());
+
+    gpx::read(reader)
+}
 
 pub fn establish_connection() -> Connection {
     dotenv().ok();
@@ -57,16 +71,16 @@ pub fn get_new_route_id(db: &Connection) -> i64 {
     rows.get(0).get(0)
 }
 
-pub fn store_points(db: &Connection, route_id: i64, points: &[gpx::Point]) {
+pub fn store_points(db: &Connection, route_id: i64, points: &[gpx::Waypoint]) {
     for p in points {
         let point = ewkb::Point {
-            x: p.lon,
-            y: p.lat,
+            x: p.point().x(),
+            y: p.point().y(),
             srid: Some(4326),
         };
         db.execute(
             "INSERT INTO points (geom, route_id, ts, ele) VALUES ($1, $2, $3, $4)",
-            &[&point, &route_id, &p.utc, &p.ele],
+            &[&point, &route_id, &p .time.unwrap(), &p.elevation.unwrap()],
         ).unwrap();
     }
 }
