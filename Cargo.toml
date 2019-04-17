@@ -10,7 +10,7 @@ lazy_static = "1.1.0"
 gpx = "0.6.0"
 getopts = "0.2.18"
 postgres = { version = "0.15.2", features = ["with-chrono"] }
-postgis = "0.5.0"
+postgis = "0.6.0"
 actix-web = "0.7"
 r2d2 = "0.8.2"
 r2d2_postgres = "0.14.0"
