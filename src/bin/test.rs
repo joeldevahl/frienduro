@@ -50,16 +50,16 @@ fn main() {
                 let path = segment_file.path();
                 let filename = path.to_str().unwrap();
                 let gpx_data = read_whole_file(filename).unwrap();
-                let source_id = create_source_route(&db, &gpx_data);
+                let source_id = create_source_route(&db, &gpx_data).unwrap();
 
                 let gpx = read_gpx(&gpx_data).unwrap();
                 let track = &gpx.tracks[0];
                 let segment = &track.segments[0];
                 let points = &segment.points;
-                let route_id = get_new_route_id(&db);
+                let route_id = get_new_route_id(&db).unwrap();
                 store_points(&db, route_id, &points);
 
-                create_segment(&db, segment_name, route_id, source_id)
+                create_segment(&db, segment_name, route_id, source_id).unwrap()
             })
             .collect::<Vec<i64>>();
         println!();
@@ -73,17 +73,17 @@ fn main() {
             let ext = user_path.extension().unwrap();
             if ext == "gpx" {
                 let user_name = user_path.file_stem().unwrap().to_str().unwrap();
-                let user_id = create_user(&db, user_name, "");
+                let user_id = create_user(&db, user_name, "").unwrap();
                 println!("\tadding user: {}", user_name);
 
                 let filename = user_path.to_str().unwrap();
                 let gpx_data = read_whole_file(filename).unwrap();
-                let source_id = create_source_route(&db, &gpx_data);
+                let source_id = create_source_route(&db, &gpx_data).unwrap();
                 let gpx = read_gpx(&gpx_data).unwrap();
                 let track = &gpx.tracks[0];
                 let segment = &track.segments[0];
                 let points = &segment.points;
-                let route_id = get_new_route_id(&db);
+                let route_id = get_new_route_id(&db).unwrap();
                 store_points(&db, route_id, &points);
                 create_participation(&db, event_id, user_id, route_id, source_id);
             }
