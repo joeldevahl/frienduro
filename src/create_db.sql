@@ -6,25 +6,9 @@ CREATE TABLE users (
 	email VARCHAR NOT NULL
 );
 
-CREATE TABLE source_routes (
-	id BIGSERIAL PRIMARY KEY,
-	gpx XML
-);
-
-CREATE SEQUENCE route_id_seq START 1;
-
-CREATE TABLE points (
-	geom GEOGRAPHY(POINT,4326) NOT NULL,
-	route_id BIGINT NOT NULL,
-	ts TIMESTAMPTZ NOT NULL,
-	ele DOUBLE PRECISION NOT NULL
-);
-
 CREATE TABLE segments (
 	id BIGSERIAL PRIMARY KEY,
 	name VARCHAR NOT NULL,
-	route_id BIGINT NOT NULL,
-	source_id BIGINT REFERENCES source_routes(id),
 	geom GEOGRAPHY(LINESTRING,4326) DEFAULT NULL,
 	geom_expanded GEOGRAPHY(POLYGON,4326) DEFAULT NULL
 );
@@ -44,15 +28,12 @@ CREATE TABLE participations (
 	id BIGSERIAL PRIMARY KEY,
 	event_id BIGINT REFERENCES events(id),
 	user_id BIGINT REFERENCES users(id),
-	route_id BIGINT NOT NULL,
-	source_id BIGINT REFERENCES source_routes(id),
-	total_elapsed_seconds BIGINT DEFAULT NULL,
-	geom GEOGRAPHY(LINESTRING,4326) DEFAULT NULL
+	total_elapsed_seconds DOUBLE PRECISION DEFAULT NULL,
+	geom GEOGRAPHY(LINESTRINGZ,4326) DEFAULT NULL
 );
 
 CREATE TABLE participation_segments (
 	participation_id BIGINT REFERENCES participations(id) ON UPDATE CASCADE ON DELETE CASCADE,
 	segment_id BIGINT REFERENCES segments(id) ON UPDATE CASCADE,
-	elapsed_seconds BIGINT DEFAULT NULL,
-	geom GEOGRAPHY DEFAULT NULL
+	elapsed_seconds DOUBLE PRECISION DEFAULT NULL,
 );

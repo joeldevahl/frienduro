@@ -11,6 +11,7 @@ use std::env;
 use postgis::ewkb;
 use postgres::{Connection, TlsMode};
 
+use postgis::ewkb::{LineStringZ, PointZ};
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -75,58 +76,39 @@ pub fn get_user(db: &Connection, user_id: i64) -> Option<User> {
     }
 }
 
-pub fn create_source_route(db: &Connection, gpx_data: &str) -> Option<i64> {
+pub fn create_segment(db: &Connection, name: &str, waypoints: &[gpx::Waypoint]) -> Option<i64> {
+    let points = waypoints
+        .iter()
+        .map(|wp| {
+            let p = wp.point();
+            ewkb::Point {
+                x: p.x(),
+                y: p.y(),
+                srid: Some(4326),
+            }
+        })
+        .collect::<Vec<ewkb::Point>>();
+    let line = ewkb::LineString {
+        points,
+        srid: Some(4326),
+    };
+
     match db.query(
-        "INSERT INTO source_routes (gpx) VALUES (XMLPARSE (DOCUMENT $1)) RETURNING id",
-        &[&gpx_data],
-    ) {
-        Ok(rows) => Some(rows.get(0).get(0)),
-        Err(_) => None,
-    }
-}
-
-pub fn get_new_route_id(db: &Connection) -> Option<i64> {
-    match db.query("SELECT nextval('route_id_seq')", &[]) {
-        Ok(rows) => Some(rows.get(0).get(0)),
-        Err(_) => None,
-    }
-}
-
-pub fn store_points(db: &Connection, route_id: i64, points: &[gpx::Waypoint]) {
-    // TODO: store all in one query
-    for p in points {
-        let point = ewkb::Point {
-            x: p.point().x(),
-            y: p.point().y(),
-            srid: Some(4326),
-        };
-        db.execute(
-            "INSERT INTO points (geom, route_id, ts, ele) VALUES ($1, $2, $3, $4)",
-            &[&point, &route_id, &p.time.unwrap(), &p.elevation.unwrap()],
-        )
-        .unwrap(); // TODO: handle failure
-    }
-}
-
-pub fn create_segment(db: &Connection, name: &str, route_id: i64, source_id: i64) -> Option<i64> {
-    match db.query(
-        "INSERT INTO segments (name, route_id, source_id) VALUES ($1, $2, $3) RETURNING id",
-        &[&name, &route_id, &source_id],
+        "INSERT INTO segments (name, geom) VALUES ($1, $2) RETURNING id",
+        &[&name, &line],
     ) {
         Ok(rows) => {
             let segment_id: i64 = rows.get(0).get(0);
 
             // TODO: do this on insert and skip a query
             db.execute(
-                "UPDATE segments SET geom = line.geom, geom_expanded = ST_Buffer(line.geom, 20, 'endcap=flat join=round')
-                        FROM (SELECT ST_MakeLine(geom::geometry)::geography AS geom FROM points WHERE route_id = $1) AS line
-                        WHERE id = $2",
-                &[&route_id, &source_id],
+                "UPDATE segments SET geom_expanded = ST_Buffer(geom, 20, 'endcap=flat join=round') WHERE id = $1",
+                &[&segment_id],
             ).unwrap();
 
             Some(segment_id)
         }
-        Err(_) => None,
+        Err(err) => None,
     }
 }
 
@@ -151,7 +133,7 @@ pub fn create_event(db: &Connection, name: &str, segment_ids: &[i64]) -> i64 {
 }
 
 struct SegmentMatch {
-    pub elapsed: i64,
+    pub elapsed: f64,
 }
 
 struct SegmentInfo {
@@ -159,151 +141,36 @@ struct SegmentInfo {
     pub matches: Vec<SegmentMatch>,
 }
 
-fn interp_point(db: &postgres::Connection, route_id: i64, point: &ewkb::Point) -> DateTime<Utc> {
-    // TODO: assumes we only passes once around the segment
-    let rows = db
-        .query(
-            "SELECT ts
-         FROM points
-         WHERE route_id = $1
-         ORDER BY ST_Distance(geom, $2) ASC
-         LIMIT 1",
-            &[&route_id, &point],
-        )
-        .unwrap();
-    return rows.get(0).get(0);
+fn check_dist(p1: &ewkb::Point, p2: &ewkb::PointZ, threshold: f64) -> bool {
+    // TODO: this thing is completely bollocks now. Threshold is in meters but points are lat/lon
+    let dx = p1.x - p2.x;
+    let dy = p1.y - p2.y;
+    dx * dx + dy * dy <= threshold * threshold
+}
+
+fn check_line(line: &ewkb::LineStringZ, start: &ewkb::Point, end: &ewkb::Point) -> Option<f64> {
+    let ls = &line.points[0];
+    let le = &line.points[line.points.len() - 1];
+    match check_dist(start, ls, 20.0) && check_dist(end, le, 20.0) {
+        true => Some(le.z - ls.z),
+        false => None,
+    }
 }
 
 fn match_segments(
     db: &postgres::Connection,
-    lines: &Vec<ewkb::LineString>,
+    lines: &Vec<ewkb::LineStringZ>,
     segment_start: &ewkb::Point,
     segment_end: &ewkb::Point,
     pid: i64,
-    rid: i64,
     sid: i64,
-) -> Option<chrono::Duration> {
-    // We try to go over all lines in sequence and build a chain of acceptable lines
-    // if we can do that we can find a time starting in one line and ending in another
-
-    // TODO: handle the case where the segment is hit multiple times, now we only take the first time
-
-    // No lines, no match
+) -> Option<f64> {
     if lines.len() == 0 {
         return None;
     }
 
-    let mut total_time: i64 = 0;
-    let mut start_line_index = 0;
-    let mut last_end = ewkb::Point {
-        x: 0.0,
-        y: 0.0,
-        srid: None,
-    };
-
-    // Find suitable start point in a segment
-    loop {
-        let line = &lines[start_line_index];
-        let points = &line.points;
-        let start = &points[0];
-        let end = points.last().unwrap();
-
-        let distance_rows = db
-            .query(
-                "SELECT
-                        ST_Distance($1::geography, $2::geography) AS dist_start,
-                        ST_Distance($3::geography, $4::geography) AS dist_end",
-                &[&segment_start, &start, &segment_end, end],
-            )
-            .unwrap();
-
-        let distance_start: f64 = distance_rows.get(0).get(0);
-
-        if distance_start < 20.0 {
-            let start_time = interp_point(&db, rid, start);
-            let end_time = interp_point(&db, rid, end);
-            let diff = end_time.signed_duration_since(start_time);
-            total_time += diff.num_seconds();
-
-            // if end distance also matches here we are done!
-            let distance_end: f64 = distance_rows.get(0).get(1);
-            if distance_end < 20.0 {
-                db.execute(
-                    "INSERT INTO participation_segments (participation_id, segment_id, elapsed_seconds, geom) VALUES ($1, $2, $3, $4)",
-                    &[&pid, &sid, &total_time, &line],
-                ).unwrap();
-
-                return Some(diff);
-            }
-
-            // This segment matched a start but not the end
-            // we store the initial point and try to chain it to the next
-            last_end = end.clone();
-            break;
-        }
-
-        start_line_index += 1;
-        if start_line_index >= lines.len() {
-            return None;
-        }
-    }
-
-    let mut end_line_index = start_line_index + 1;
-
-    // start match was last line, no match
-    if end_line_index == lines.len() {
-        return None;
-    }
-
-    loop {
-        let line = &lines[end_line_index];
-        let points = &line.points;
-        let start = &points[0];
-        let end = points.last().unwrap();
-
-        let distance_rows = db
-            .query(
-                "SELECT
-                        ST_Distance($1::geography, $2::geography) AS dist_start,
-                        ST_Distance($3::geography, $4::geography) AS dist_end",
-                &[&last_end, &start, &segment_end, end],
-            )
-            .unwrap();
-
-        let distance_start: f64 = distance_rows.get(0).get(0);
-
-        // current line did not connect with previous
-        // no match for now
-        // TODO: restart searching for a match from the next line as start
-        if distance_start >= 20.0 {
-            return None;
-        }
-
-        let start_time = interp_point(&db, rid, start);
-        let end_time = interp_point(&db, rid, end);
-        let diff = end_time.signed_duration_since(start_time);
-        total_time += diff.num_seconds();
-
-        // does this line complete the segment?
-        let distance_end: f64 = distance_rows.get(0).get(1);
-        if distance_end < 20.0 {
-            if diff >= chrono::Duration::seconds(0) {
-                db.execute(
-                    "INSERT INTO participation_segments (participation_id, segment_id, elapsed_seconds, geom) VALUES ($1, $2, $3, $4)",
-                    &[&pid, &sid, &total_time, &line],
-                ).unwrap();
-
-                return Some(diff);
-            }
-        }
-
-        end_line_index += 1;
-        if end_line_index >= lines.len() {
-            return None;
-        }
-
-        last_end = end.clone();
-    }
+    // TODO: hack to match only first line for now
+    check_line(&lines[0], segment_start, segment_end)
 }
 
 fn update_participation_timing(db: &Connection, participation_id: i64) {
@@ -315,10 +182,9 @@ fn update_participation_timing(db: &Connection, participation_id: i64) {
         )
         .unwrap();
 
-    let route_id: i64 = participation_rows.get(0).get("route_id");
     let event_id: i64 = participation_rows.get(0).get("event_id");
 
-    // TODO: handle the case where the user submits many atempts on a single event
+    // TODO: handle the case where the user submits many attempts on a single event
     let count_rows = db
         .query(
             "SELECT COUNT(segment_id) FROM participation_segments WHERE participation_id = $1",
@@ -347,7 +213,6 @@ fn update_participation_timing(db: &Connection, participation_id: i64) {
 
     for row in &segment_rows {
         let segment_id: i64 = row.get("id");
-        let segment_route_id: i64 = row.get("route_id");
 
         let mut segment_info = SegmentInfo {
             segment_id,
@@ -355,64 +220,42 @@ fn update_participation_timing(db: &Connection, participation_id: i64) {
         };
 
         let matched_rows = db.query("SELECT
-                                        ST_Intersection(ST_Buffer(segment.route, 20, 'endcap=flat join=round'), participation.route) AS cut,
-                                        segment.route AS segment,
-                                        ST_StartPoint(segment.route::geometry) AS segment_start,
-                                        ST_EndPoint(segment.route::geometry) AS segment_end,
-                                        participation.route AS participation
+                                        ST_Intersection(segment.geom_expanded, participation.geom) AS cut,
+                                        ST_StartPoint(segment.geom::geometry) AS segment_start,
+                                        ST_EndPoint(segment.geom::geometry) AS segment_end
                                     FROM
-                                    (SELECT ST_MakeLine(geom::geometry)::geography AS route FROM points WHERE route_id = $1) AS participation,
-                                    (SELECT ST_MakeLine(geom::geometry)::geography AS route FROM points WHERE route_id = $2) AS segment",
-                             &[&route_id, &segment_route_id],
+                                    (SELECT geom FROM participations WHERE id = $1) AS participation,
+                                    (SELECT geom, geom_expanded FROM segments WHERE id = $2) AS segment",
+                             &[&participation_id, &segment_id],
         ).unwrap();
 
         let segment_start: ewkb::Point = matched_rows.get(0).get("segment_start");
         let segment_end: ewkb::Point = matched_rows.get(0).get("segment_end");
 
-        let is_mls: Option<postgres::Result<ewkb::MultiLineString>> =
+        let is_mls: Option<postgres::Result<ewkb::MultiLineStringZ>> =
             matched_rows.get(0).get_opt("cut");
-        match is_mls {
-            None => (),
-            Some(Ok(mls)) => {
-                match match_segments(
-                    &db,
-                    &mls.lines,
-                    &segment_start,
-                    &segment_end,
-                    participation_id,
-                    route_id,
-                    segment_id,
-                ) {
-                    Some(seconds) => {
-                        let segment_match = SegmentMatch {
-                            elapsed: seconds.num_seconds(),
-                        };
-                        segment_info.matches.push(segment_match);
-                    }
-                    None => (),
-                }
-            }
+        let lines = match is_mls {
+            Some(Ok(mls)) => mls.lines,
             Some(Err(..)) => {
-                let ls: ewkb::LineString = matched_rows.get(0).get("cut");
-                let lines = vec![ls];
-                match match_segments(
-                    &db,
-                    &lines,
-                    &segment_start,
-                    &segment_end,
-                    participation_id,
-                    route_id,
-                    segment_id,
-                ) {
-                    Some(seconds) => {
-                        let segment_match = SegmentMatch {
-                            elapsed: seconds.num_seconds(),
-                        };
-                        segment_info.matches.push(segment_match);
-                    }
-                    None => (),
-                }
+                let ls: ewkb::LineStringZ = matched_rows.get(0).get("cut");
+                vec![ls]
             }
+            None => vec![],
+        };
+
+        match match_segments(
+            &db,
+            &lines,
+            &segment_start,
+            &segment_end,
+            participation_id,
+            segment_id,
+        ) {
+            Some(seconds) => {
+                let segment_match = SegmentMatch { elapsed: seconds };
+                segment_info.matches.push(segment_match);
+            }
+            None => (),
         }
 
         matched_segments.push(segment_info);
@@ -420,11 +263,11 @@ fn update_participation_timing(db: &Connection, participation_id: i64) {
 
     // TODO: more advanced completion logic
     // for now we just make sure all segments are matched, and take the fastest time
-    let mut total_elapsed: i64 = 0;
+    let mut total_elapsed: f64 = 0.0;
     let mut total_valid: usize = 0;
     for segment_info in matched_segments {
         let valid = segment_info.matches.len() != 0;
-        let mut smallest: i64 = std::i64::MAX;
+        let mut smallest: f64 = std::f64::MAX;
         for segment_match in segment_info.matches {
             if segment_match.elapsed < smallest {
                 smallest = segment_match.elapsed;
@@ -452,20 +295,33 @@ pub fn create_participation(
     db: &Connection,
     event_id: i64,
     user_id: i64,
-    route_id: i64,
-    source_id: i64,
+    waypoints: &[gpx::Waypoint],
 ) -> i64 {
-    let rows = db.query("INSERT INTO participations (event_id, user_id, route_id, source_id) VALUES ($1, $2, $3, $4) RETURNING id",
-        &[&event_id, &user_id, &route_id, &source_id]
-    ).unwrap();
-    let participation_id: i64 = rows.get(0).get(0);
+    let start_time = waypoints[0].time.unwrap().timestamp_millis();
+    let points = waypoints
+        .iter()
+        .map(|wp| {
+            let p = wp.point();
+            ewkb::PointZ {
+                x: p.x(),
+                y: p.y(),
+                z: (wp.time.unwrap().timestamp_millis() - start_time) as f64 / 1000.0,
+                srid: Some(4326),
+            }
+        })
+        .collect::<Vec<ewkb::PointZ>>();
+    let line = ewkb::LineStringZ {
+        points,
+        srid: Some(4326),
+    };
 
-    db.execute(
-        "UPDATE participations SET geom = line.geom
-        FROM (SELECT ST_MakeLine(geom::geometry)::geography AS geom FROM points WHERE route_id = $1) AS line
-        WHERE id = $2",
-        &[&route_id, &participation_id],
-    ).unwrap();
+    let rows = db
+        .query(
+            "INSERT INTO participations (event_id, user_id, geom) VALUES ($1, $2, $3) RETURNING id",
+            &[&event_id, &user_id, &line],
+        )
+        .unwrap();
+    let participation_id: i64 = rows.get(0).get(0);
 
     update_participation_timing(db, participation_id);
 
@@ -474,7 +330,7 @@ pub fn create_participation(
 
 pub struct EventResult {
     pub username: String,
-    pub time: i64,
+    pub time: f64,
 }
 
 pub fn get_event_results(db: &Connection, event_id: i64) -> Vec<EventResult> {
@@ -487,10 +343,10 @@ pub fn get_event_results(db: &Connection, event_id: i64) -> Vec<EventResult> {
         .iter()
         .map(|row| {
             let username: String = row.get("name");
-            let maybe_elapsed: Option<postgres::Result<i64>> = row.get_opt("total_elapsed_seconds");
+            let maybe_elapsed: Option<postgres::Result<f64>> = row.get_opt("total_elapsed_seconds");
             let time = match maybe_elapsed {
                 Some(Ok(elapsed)) => elapsed,
-                Some(Err(..)) | None => 0,
+                Some(Err(..)) | None => 0.0,
             };
 
             EventResult { username, time }

@@ -50,16 +50,13 @@ fn main() {
                 let path = segment_file.path();
                 let filename = path.to_str().unwrap();
                 let gpx_data = read_whole_file(filename).unwrap();
-                let source_id = create_source_route(&db, &gpx_data).unwrap();
 
                 let gpx = read_gpx(&gpx_data).unwrap();
                 let track = &gpx.tracks[0];
                 let segment = &track.segments[0];
                 let points = &segment.points;
-                let route_id = get_new_route_id(&db).unwrap();
-                store_points(&db, route_id, &points);
 
-                create_segment(&db, segment_name, route_id, source_id).unwrap()
+                create_segment(&db, segment_name, points).unwrap()
             })
             .collect::<Vec<i64>>();
         println!();
@@ -78,14 +75,11 @@ fn main() {
 
                 let filename = user_path.to_str().unwrap();
                 let gpx_data = read_whole_file(filename).unwrap();
-                let source_id = create_source_route(&db, &gpx_data).unwrap();
                 let gpx = read_gpx(&gpx_data).unwrap();
                 let track = &gpx.tracks[0];
                 let segment = &track.segments[0];
                 let points = &segment.points;
-                let route_id = get_new_route_id(&db).unwrap();
-                store_points(&db, route_id, &points);
-                create_participation(&db, event_id, user_id, route_id, source_id);
+                create_participation(&db, event_id, user_id, points);
             }
         }
         println!();
@@ -94,7 +88,7 @@ fn main() {
         let results = get_event_results(&db, event_id);
         for (i, result) in results.iter().enumerate() {
             match result.time {
-                0 => println!("\t\t{} - {} DNF", i + 1, result.username),
+                0.0 => println!("\t\t{} - {} DNF", i + 1, result.username),
                 time => println!("\t\t{} - {} {}s", i + 1, result.username, time),
             }
         }

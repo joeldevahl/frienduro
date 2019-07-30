@@ -29,7 +29,9 @@ fn user(
     let uid = id.into_inner();
     let user = get_user(&conn, uid).unwrap();
 
-    HttpResponse::Ok().json(user);
+    HttpResponse::Ok()
+        .content_type("text/plain")
+        .body(user.name)
 }
 
 #[get("/event/{id}")]
