@@ -4,6 +4,7 @@ extern crate futures;
 extern crate postgres;
 extern crate r2d2;
 extern crate r2d2_postgres;
+extern crate serde_json;
 
 extern crate frienduro;
 
@@ -13,12 +14,12 @@ use std::fmt::Write;
 
 use actix_web::http::Method;
 use actix_web::{get, middleware, web, App, Error, HttpRequest, HttpResponse, HttpServer};
-use frienduro::{get_event, get_user};
+use frienduro::{get_event, get_events, get_user};
 use futures::Future;
 use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 
-#[get("/user/{id}")]
+#[get("/api/user/{id}")]
 fn user(
     req: HttpRequest,
     db: web::Data<Pool<PostgresConnectionManager>>,
@@ -34,7 +35,7 @@ fn user(
         .body(user.name)
 }
 
-#[get("/event/{id}")]
+#[get("/api/event/{id}")]
 fn event(
     req: HttpRequest,
     db: web::Data<Pool<PostgresConnectionManager>>,
@@ -61,6 +62,17 @@ fn event(
     HttpResponse::Ok().content_type("text/plain").body(results)
 }
 
+#[get("/api/events")]
+fn events(req: HttpRequest, db: web::Data<Pool<PostgresConnectionManager>>) -> HttpResponse {
+    let conn = db.get().unwrap();
+
+    let events = get_events(&conn).unwrap();
+
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(serde_json::to_string(&events).unwrap())
+}
+
 fn main() {
     std::env::set_var("RUST_LOG", "actix_web=info");
     dotenv().ok();
@@ -75,6 +87,7 @@ fn main() {
             .data(pool.clone())
             .service(user)
             .service(event)
+            .service(events)
     })
     .bind("127.0.0.1:8088")
     .unwrap()

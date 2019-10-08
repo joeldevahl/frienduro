@@ -1,16 +1,23 @@
 extern crate chrono;
 extern crate dotenv;
+extern crate geo;
 extern crate gpx;
 extern crate postgis;
 extern crate postgres;
+extern crate serde;
 
 use chrono::prelude::*;
 use dotenv::dotenv;
 use std::env;
 
+use geo::algorithm::vincenty_distance::VincentyDistance;
+
 use postgis::ewkb;
 use postgres::{Connection, TlsMode};
 
+use serde::{Deserialize, Serialize};
+
+use geo::Coordinate;
 use postgis::ewkb::{LineStringZ, PointZ};
 use std::fs::File;
 use std::io::prelude::*;
@@ -142,10 +149,18 @@ struct SegmentInfo {
 }
 
 fn check_dist(p1: &ewkb::Point, p2: &ewkb::PointZ, threshold: f64) -> bool {
-    // TODO: this thing is completely bollocks now. Threshold is in meters but points are lat/lon
-    let dx = p1.x - p2.x;
-    let dy = p1.y - p2.y;
-    dx * dx + dy * dy <= threshold * threshold
+    if p1.x == p1.x && p1.y == p1.y {
+        // we have to test for point equality here because vincenty_distance fails when given
+        // two identical points
+        true
+    } else {
+        let gp1 = geo::Point::new(p1.x, p1.y);
+        let gp2 = geo::Point::new(p2.x, p2.y);
+        match gp1.vincenty_distance(&gp2) {
+            Ok(dist) => dist < threshold,
+            Err(_) => false,
+        }
+    }
 }
 
 fn check_line(line: &ewkb::LineStringZ, start: &ewkb::Point, end: &ewkb::Point) -> Option<f64> {
@@ -169,8 +184,82 @@ fn match_segments(
         return None;
     }
 
-    // TODO: hack to match only first line for now
-    check_line(&lines[0], segment_start, segment_end)
+    let mut total_time: f64 = 0.0;
+    let mut start_line_index = 0;
+    let mut last_end = ewkb::Point {
+        x: 0.0,
+        y: 0.0,
+        srid: None,
+    };
+
+    // Find suitable start point in a segment
+    loop {
+        let line = &lines[start_line_index];
+        let points = &line.points;
+        let start = &points[0];
+        let end = points.last().unwrap();
+        if check_dist(segment_start, start, 20.0) {
+            total_time += line.points[line.points.len() - 1].z - line.points[0].z;
+
+            // if end distance also matches here we are done!
+            if check_dist(segment_end, end, 20.0) {
+                return Some(total_time);
+            }
+
+            // This segment matched a start but not the end
+            // we store the initial point and try to chain it to the next
+            last_end = ewkb::Point {
+                x: end.x,
+                y: end.y,
+                srid: end.srid,
+            };
+            break;
+        }
+
+        start_line_index += 1;
+        if start_line_index >= lines.len() {
+            return None;
+        }
+    }
+
+    let mut end_line_index = start_line_index + 1;
+
+    // start match was last line, no match
+    if end_line_index == lines.len() {
+        return None;
+    }
+
+    loop {
+        let line = &lines[end_line_index];
+        let points = &line.points;
+        let start = &points[0];
+        let end = points.last().unwrap();
+
+        // current line did not connect with previous
+        // no match for now
+        // TODO: restart searching for a match from the next line as start
+        if !check_dist(&last_end, start, 20.0) {
+            return None;
+        }
+
+        total_time += line.points[line.points.len() - 1].z - line.points[0].z;
+
+        // does this line complete the segment?
+        if check_dist(segment_end, end, 20.0) {
+            return Some(total_time);
+        }
+
+        end_line_index += 1;
+        if end_line_index >= lines.len() {
+            return None;
+        }
+
+        last_end = ewkb::Point {
+            x: end.x,
+            y: end.y,
+            srid: end.srid,
+        };
+    }
 }
 
 fn update_participation_timing(db: &Connection, participation_id: i64) {
@@ -354,17 +443,36 @@ pub fn get_event_results(db: &Connection, event_id: i64) -> Vec<EventResult> {
         .collect()
 }
 
-pub struct Event {
+pub struct EventDetails {
     pub name: String,
     pub results: Vec<EventResult>,
 }
 
-pub fn get_event(db: &Connection, event_id: i64) -> Option<Event> {
+pub fn get_event(db: &Connection, event_id: i64) -> Option<EventDetails> {
     match db.query("SELECT * FROM events WHERE id = $1", &[&event_id]) {
-        Ok(rows) => Some(Event {
+        Ok(rows) => Some(EventDetails {
             name: rows.get(0).get("name"),
             results: get_event_results(db, event_id),
         }),
+        Err(..) => None,
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EventInfo {
+    pub name: String,
+}
+
+pub fn get_events(conn: &Connection) -> Option<Vec<EventInfo>> {
+    match conn.query("SELECT name FROM events", &[]) {
+        Ok(rows) => Some(
+            rows.iter()
+                .map(|row| {
+                    let name: String = row.get("name");
+                    EventInfo { name }
+                })
+                .collect(),
+        ),
         Err(..) => None,
     }
 }

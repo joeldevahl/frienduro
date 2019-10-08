@@ -35,5 +35,5 @@ CREATE TABLE participations (
 CREATE TABLE participation_segments (
 	participation_id BIGINT REFERENCES participations(id) ON UPDATE CASCADE ON DELETE CASCADE,
 	segment_id BIGINT REFERENCES segments(id) ON UPDATE CASCADE,
-	elapsed_seconds DOUBLE PRECISION DEFAULT NULL,
+	elapsed_seconds DOUBLE PRECISION DEFAULT NULL
 );
