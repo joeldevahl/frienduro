@@ -19,49 +19,6 @@ use futures::Future;
 use r2d2::Pool;
 use r2d2_postgres::{PostgresConnectionManager, TlsMode};
 
-#[get("/api/user/{id}")]
-fn user(
-    req: HttpRequest,
-    db: web::Data<Pool<PostgresConnectionManager>>,
-    id: web::Path<i64>,
-) -> HttpResponse {
-    let conn = db.get().unwrap();
-
-    let uid = id.into_inner();
-    let user = get_user(&conn, uid).unwrap();
-
-    HttpResponse::Ok()
-        .content_type("text/plain")
-        .body(user.name)
-}
-
-#[get("/api/event/{id}")]
-fn event(
-    req: HttpRequest,
-    db: web::Data<Pool<PostgresConnectionManager>>,
-    id: web::Path<i64>,
-) -> HttpResponse {
-    let conn = db.get().unwrap();
-
-    let eid = id.into_inner();
-
-    let event = get_event(&conn, eid).unwrap();
-
-    let mut results = format!("Results for {}:\n", event.name);
-    for (i, r) in event.results.iter().enumerate() {
-        write!(
-            &mut results,
-            "{} {} - {} seconds\n",
-            i + 1,
-            r.username,
-            r.time,
-        )
-        .unwrap();
-    }
-
-    HttpResponse::Ok().content_type("text/plain").body(results)
-}
-
 #[get("/api/events")]
 fn events(req: HttpRequest, db: web::Data<Pool<PostgresConnectionManager>>) -> HttpResponse {
     let conn = db.get().unwrap();
@@ -71,6 +28,21 @@ fn events(req: HttpRequest, db: web::Data<Pool<PostgresConnectionManager>>) -> H
     HttpResponse::Ok()
         .content_type("application/json")
         .body(serde_json::to_string(&events).unwrap())
+}
+
+#[get("/api/events/{id}")]
+fn events_with_id(
+    req: HttpRequest,
+    db: web::Data<Pool<PostgresConnectionManager>>,
+    id: web::Path<i64>,
+) -> HttpResponse {
+    let conn = db.get().unwrap();
+
+    let event = get_event(&conn, id.into_inner()).unwrap();
+
+    HttpResponse::Ok()
+        .content_type("application/json")
+        .body(serde_json::to_string(&event).unwrap())
 }
 
 fn main() {
@@ -85,9 +57,8 @@ fn main() {
         App::new()
             .wrap(middleware::Logger::default())
             .data(pool.clone())
-            .service(user)
-            .service(event)
             .service(events)
+            .service(events_with_id)
     })
     .bind("127.0.0.1:8088")
     .unwrap()

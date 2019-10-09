@@ -417,6 +417,7 @@ pub fn create_participation(
     participation_id
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EventResult {
     pub username: String,
     pub time: f64,
@@ -443,6 +444,7 @@ pub fn get_event_results(db: &Connection, event_id: i64) -> Vec<EventResult> {
         .collect()
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct EventDetails {
     pub name: String,
     pub results: Vec<EventResult>,
