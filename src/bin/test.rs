@@ -70,7 +70,7 @@ fn main() {
             let ext = user_path.extension().unwrap();
             if ext == "gpx" {
                 let user_name = user_path.file_stem().unwrap().to_str().unwrap();
-                let user_id = create_user(&db, user_name, "").unwrap();
+                let user = create_user(&db, user_name, "").unwrap();
                 println!("\tadding user: {}", user_name);
 
                 let filename = user_path.to_str().unwrap();

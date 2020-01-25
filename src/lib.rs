@@ -58,17 +58,39 @@ pub fn empty_db(db: &Connection) -> Result<(), postgres::Error> {
     db.batch_execute(EMPTY_DB_SQL)
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct User {
+    pub id: i64,
     pub name: String,
     pub email: String,
 }
 
-pub fn create_user(db: &Connection, name: &str, email: &str) -> Option<i64> {
+pub fn get_users(db: &Connection) -> Option<Vec<User>> {
+    match db.query("SELECT * FROM users", &[]) {
+        Ok(rows) => Some(
+            rows.iter()
+                .map(|row| {
+                    let id: i64 = row.get("id");
+                    let name: String = row.get("name");
+                    let email: String = row.get("email");
+                    User { id, name, email }
+                })
+                .collect(),
+        ),
+        Err(_) => None,
+    }
+}
+
+pub fn create_user(db: &Connection, name: &str, email: &str) -> Option<User> {
     match db.query(
         "INSERT INTO users (name, email) VALUES ($1, $2) RETURNING id",
         &[&name, &email],
     ) {
-        Ok(rows) => Some(rows.get(0).get(0)),
+        Ok(rows) => Some(User {
+            id: rows.get(0).get(0),
+            name: name.to_string(),
+            email: email.to_string(),
+        }),
         Err(_) => None,
     }
 }
@@ -76,6 +98,7 @@ pub fn create_user(db: &Connection, name: &str, email: &str) -> Option<i64> {
 pub fn get_user(db: &Connection, user_id: i64) -> Option<User> {
     match db.query("SELECT * FROM users WHERE id = $1", &[&user_id]) {
         Ok(rows) => Some(User {
+            id: user_id,
             name: rows.get(0).get("name"),
             email: rows.get(0).get("email"),
         }),
